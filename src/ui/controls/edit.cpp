@@ -2683,6 +2683,8 @@ bool CEdit::Paste()
     char*   text;
     bool    bOk;
     short   j;      //subIndex for multiBytes UTF8
+    int     iTabToInsert=0;
+    int     iTmp; //temp for tab space equivalant insertion
 
     if ( !m_bEdit )
     {
@@ -2700,13 +2702,26 @@ bool CEdit::Paste()
     for (std::size_t i = 0; i<strlen(text); ++i)
     {
         c = text[i];
-        if ( c == '\r' )
+        switch(c)
         {
+        case '\r':
             continue;
+        case '\t':
+            if (m_bAutoIndent)
+            {
+                if (0<m_cursor1 && m_cursor1<=m_len && '\n'!=m_text[m_cursor1-1])
+                    iTabToInsert++;
+                continue;
+            }
+            break;
+        case '\n':
+            iTabToInsert=0;
         }
-        if ( c == '\t' && m_bAutoIndent )
+        if (0<iTabToInsert && m_bAutoIndent)
         {
-            continue;
+            for (iTmp=m_engine->GetEditIndentValue()*iTabToInsert; iTmp>0; --iTmp)
+                InsertOne(' ');
+            iTabToInsert=0;
         }
         //control UTF8 validity of injected elements
         short nbBytes=1;
@@ -2741,7 +2756,10 @@ bool CEdit::Paste()
             InsertOne(text[i+j]);
         i+=nbBytes-1;
     }
-
+    if (0<iTabToInsert && m_bAutoIndent && 0<m_cursor1
+        && (m_cursor1>=m_len || '\n'!=m_text[m_cursor1]))
+        for (iTmp=m_engine->GetEditIndentValue() ; iTmp>0; --iTmp)
+            InsertOne(' ');
     SDL_free(text);
     Justif();
     ColumnFix();
@@ -2794,9 +2812,7 @@ void CEdit::Insert(const char character)
             InsertOne(character);
             level = IndentCompute();
             for ( i=0 ; i<level ; i++ )
-            {
                 InsertOne('\t');
-            }
         }
         else if ( character == '{' )
         {
@@ -2819,9 +2835,7 @@ void CEdit::Insert(const char character)
             InsertOne(character);
         }
         else
-        {
             InsertOne(character);
-        }
     }
     else if ( m_bAutoIndent )
     {
@@ -2887,9 +2901,7 @@ void CEdit::Insert(const char character)
         }
     }
     else
-    {
         InsertOne(character);
-    }
 
     Justif();
     ColumnFix();
@@ -3057,7 +3069,6 @@ void CEdit::DeleteOne(const int dir)
     }
     m_len -= hole;
     m_text.resize( m_len + 1, '\0' );   //fix local memory leak
-
     m_cursor2 = m_cursor1;
     m_text[m_len]='\0'; //fix end...
 }
@@ -3200,16 +3211,11 @@ int CEdit::IndentTabCount()const
 void CEdit::IndentTabAdjust(const int number)
 {
     int     i;
-
     for ( i=0 ; i<number ; i++ )  // add?
-    {
         InsertOne('\t');
-    }
 
     for ( i=0 ; i>number ; i-- )  // delete?
-    {
         DeleteOne(-1);
-    }
 }
 
 
@@ -3280,7 +3286,7 @@ bool CEdit::Shift(const bool bLeft)
     return true;
 }
 
-// upper case or lower case conversion of the selection.
+// Upper case or lower case conversion of the selection.
 
 bool CEdit::MinMaj(const bool bMaj)
 {
