@@ -147,6 +147,7 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
     set(NORMAL_CXX_FLAGS "-std=c++11 -Wall -Werror -Wold-style-cast -pedantic-errors")
     set(NORMAL_CXX_FLAGS "${NORMAL_CXX_FLAGS} -Wno-error=deprecated-declarations") # updated version of physfs is not available on some platforms so we keep using deprecated functions, see #958
+    set(NORMAL_CXX_FLAGS "${NORMAL_CXX_FLAGS} -Wno-inconsistent-missing-override") # clang don't accept missing "override" keyword, so until fix, tolerate it, see #1113
     set(RELEASE_CXX_FLAGS "-O2")
     set(DEBUG_CXX_FLAGS "-g -O0")
     set(TEST_CXX_FLAGS "-pthread")
