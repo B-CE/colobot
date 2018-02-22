@@ -2253,104 +2253,115 @@ void CEdit::MoveChar(int move, bool bWord, bool bSelect)
 {
     int     character;
 
-    if ( move == -1 )  // back?
+    if (0>move)  // back?
     {
-        if ( bWord )
-        {
-            while ( m_cursor1 > 0 )
+        while(0>move++)
+            if ( bWord )
             {
-                character = static_cast<unsigned char>(m_text[m_cursor1-1]);
-                if ( !IsSpace(character) )  break;
+                while ( m_cursor1 > 0 )
+                {
+                    character = static_cast<unsigned char>(m_text[m_cursor1-1]);
+                    if ( !IsSpace(character) )  break;
+                    m_cursor1 --;
+                }
+
+                if ( m_cursor1 > 0 )
+                {
+                    character = static_cast<unsigned char>(m_text[m_cursor1-1]);
+                    if ( IsSpace(character) )
+                    {
+                        while ( m_cursor1 > 0 )
+                        {
+                            character = static_cast<unsigned char>(m_text[m_cursor1-1]);
+                            if ( !IsSpace(character) )  break;
+                            m_cursor1 --;
+                        }
+                    }
+                    else if ( IsWord(character) )
+                    {
+                        while ( m_cursor1 > 0 )
+                        {
+                            character = static_cast<unsigned char>(m_text[m_cursor1-1]);
+                            if ( !IsWord(character) )  break;
+                            m_cursor1 --;
+                        }
+                    }
+                    else if ( IsSep(character) )
+                    {
+                        while ( m_cursor1 > 0 )
+                        {
+                            character = static_cast<unsigned char>(m_text[m_cursor1-1]);
+                            if ( !IsSep(character) )  break;
+                            m_cursor1 --;
+                        }
+                    }
+                }
+            }
+            else
+            {
                 m_cursor1 --;
-            }
-
-            if ( m_cursor1 > 0 )
-            {
-                character = static_cast<unsigned char>(m_text[m_cursor1-1]);
-                if ( IsSpace(character) )
+                if ( m_cursor1 < 0 )
                 {
-                    while ( m_cursor1 > 0 )
-                    {
-                        character = static_cast<unsigned char>(m_text[m_cursor1-1]);
-                        if ( !IsSpace(character) )  break;
-                        m_cursor1 --;
-                    }
-                }
-                else if ( IsWord(character) )
-                {
-                    while ( m_cursor1 > 0 )
-                    {
-                        character = static_cast<unsigned char>(m_text[m_cursor1-1]);
-                        if ( !IsWord(character) )  break;
-                        m_cursor1 --;
-                    }
-                }
-                else if ( IsSep(character) )
-                {
-                    while ( m_cursor1 > 0 )
-                    {
-                        character = static_cast<unsigned char>(m_text[m_cursor1-1]);
-                        if ( !IsSep(character) )  break;
-                        m_cursor1 --;
-                    }
+                    m_cursor1 = 0;
+                    break;
                 }
             }
-        }
-        else
-        {
-            m_cursor1 --;
-            if ( m_cursor1 < 0 )  m_cursor1 = 0;
-        }
     }
-
-    if ( move == 1 )  // advance?
+    else if ( 0<move )  // advance?
     {
-        if ( bWord )
-        {
-            if ( m_cursor1 < m_len )
+        while(0<move--)
+            if ( bWord )
             {
-                character = static_cast<unsigned char>(m_text[m_cursor1]);
-                if ( IsSpace(character) )
+                if ( m_cursor1 < m_len )
                 {
-                    while ( m_cursor1 < m_len )
+                    character = static_cast<unsigned char>(m_text[m_cursor1]);
+                    if ( IsSpace(character) )
                     {
-                        character = static_cast<unsigned char>(m_text[m_cursor1]);
-                        if ( !IsSpace(character) )  break;
-                        m_cursor1 ++;
+                        while ( m_cursor1 < m_len )
+                        {
+                            character = static_cast<unsigned char>(m_text[m_cursor1]);
+                            if ( !IsSpace(character) )  break;
+                            m_cursor1 ++;
+                        }
+                    }
+                    else if ( IsWord(character) )
+                    {
+                        while ( m_cursor1 < m_len )
+                        {
+                            character = static_cast<unsigned char>(m_text[m_cursor1]);
+                            if ( !IsWord(character) )  break;
+                            m_cursor1 ++;
+                        }
+                    }
+                    else if ( IsSep(character) )
+                    {
+                        while ( m_cursor1 < m_len )
+                        {
+                            character = static_cast<unsigned char>(m_text[m_cursor1]);
+                            if ( !IsSep(character) )  break;
+                            m_cursor1 ++;
+                        }
                     }
                 }
-                else if ( IsWord(character) )
-                {
-                    while ( m_cursor1 < m_len )
-                    {
-                        character = static_cast<unsigned char>(m_text[m_cursor1]);
-                        if ( !IsWord(character) )  break;
-                        m_cursor1 ++;
-                    }
-                }
-                else if ( IsSep(character) )
-                {
-                    while ( m_cursor1 < m_len )
-                    {
-                        character = static_cast<unsigned char>(m_text[m_cursor1]);
-                        if ( !IsSep(character) )  break;
-                        m_cursor1 ++;
-                    }
-                }
-            }
+                else
+                    break;
 
-            while ( m_cursor1 < m_len )
-            {
-                character = static_cast<unsigned char>(m_text[m_cursor1]);
-                if ( !IsSpace(character) )  break;
-                m_cursor1 ++;
+                while ( m_cursor1 < m_len )
+                {
+                    character = static_cast<unsigned char>(m_text[m_cursor1]);
+                    if ( !IsSpace(character) )  break;
+                    m_cursor1 ++;
+                }
             }
-        }
-        else
-        {
-            m_cursor1 ++;
-            if ( m_cursor1 > m_len )  m_cursor1 = m_len;
-        }
+            else
+            {
+                m_cursor1 ++;
+                if ( m_cursor1 > m_len )
+                {
+                    m_cursor1 = m_len;
+                    break;
+                }
+            }
     }
 
     if ( !bSelect )  m_cursor2 = m_cursor1;
@@ -2659,11 +2670,41 @@ void CEdit::Insert(char character)
                 InsertOne(' ');
             break;
         case '\n':
-            if (m_cursor1 > 1 && m_text[m_cursor1-1] == '{')
+            if(m_cursor1>2  //after do => auto "\n{\n;\n}\n while();" insertion 
+                && m_text[m_cursor1-2] == 'd' && m_text[m_cursor1-1] == 'o'
+                && ( m_cursor1>m_len
+                  || m_text[m_cursor1 ] != '\n' || m_text[m_cursor1+1] != '{'))
             {
                 InsertOne(character);
+                InsertOne('{');
+                InsertOne('\n');
+                InsertOne(';');
+                InsertOne('\n');
+                InsertOne('}');
+                InsertOne('\n');
+                InsertOne('w');
+                InsertOne('h');
+                InsertOne('i');
+                InsertOne('l');
+                InsertOne('e');
+                InsertOne('(');
+                InsertOne(')');
+                if(m_text[m_cursor1 ] != ';')
+                {
+                    InsertOne(';');
+                    MoveChar(-12, false, false);
+                }
+                else
+                    MoveChar(-11, false, false);   
+                break;
+            }
+            else if (m_cursor1 > 1 && m_text[m_cursor1-1] == '{'
+                && m_cursor1<m_len && m_text[m_cursor1] == '}')
+            {
                 InsertOne(character);
-                MoveChar(-1, false, false);
+                InsertOne(';');
+                InsertOne(character);
+                MoveChar(-2, false, false);
                 break;
             }
             //else : non break ok
@@ -2756,10 +2797,10 @@ void CEdit::DeleteOne(int dir)
             m_cursor2 ++;
         }
     }
-    else    //next test ok by construction in previous case
+
     if ( m_cursor1 > m_cursor2 )  Math::Swap(m_cursor1, m_cursor2);
     hole = m_cursor2-m_cursor1;
-    
+
     //helper : delete left '(' in "()" delete boths + idem for '{' with "{}"
     if(1==hole && (
             ('('==m_text[m_cursor1] && ')'==m_text[m_cursor2])
