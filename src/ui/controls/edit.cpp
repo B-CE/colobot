@@ -1006,7 +1006,8 @@ void CEdit::Draw()
 
         beg = m_lineOffset[i];
         len = m_lineOffset[i+1] - m_lineOffset[i];
-
+        if (m_bMulti && m_bAutoIndent && beg>=1 && m_text[beg-1]!='\n')
+            pos.x+=indentLength/2;  //indent once half more autowrapped long lines
         ppos = pos;
         size = m_fontSize;
 
@@ -1159,6 +1160,8 @@ void CEdit::Draw()
                 if ( m_bAutoIndent )
                 {
                     pos.x += indentLength*m_lineIndent[i];
+                    if (m_bMulti && m_lineOffset[i]>=1 && m_text[m_lineOffset[i]-1]!='\n')
+                        pos.x+=indentLength/2;  //indent once half more autowrapped long lines
                 }
 
                 len = m_cursor1 - m_lineOffset[i];
@@ -3239,6 +3242,9 @@ void CEdit::Justif()
         if ( m_bAutoIndent )
         {
             width -= indentLength*m_lineIndent[m_lineTotal-1];
+            if (m_bMulti && i>=1 && i<m_len-1 && m_text[i-1]!='\n'
+                && width>indentLength)
+                width -= indentLength/2;  //indent once half more multilines
         }
 
         if ( m_format.empty() )
@@ -3529,3 +3535,4 @@ void CEdit::InsertTxt(const char* str)
 }
 
 }
+
