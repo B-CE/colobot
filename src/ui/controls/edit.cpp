@@ -2840,11 +2840,41 @@ void CEdit::Insert(const char character)
                 InsertOne(' ');
             break;
         case '\n':
-            if (m_cursor1 > 1 && m_text[m_cursor1-1] == '{')
+            if (m_cursor1>2  //after do => auto "\n{\n;\n}\n while();" insertion 
+                && m_text[m_cursor1-2] == 'd' && m_text[m_cursor1-1] == 'o'
+                && ( m_cursor1>m_len
+                  || m_text[m_cursor1 ] != '\n' || m_text[m_cursor1+1] != '{'))
             {
                 InsertOne(character);
+                InsertOne('{');
+                InsertOne('\n');
+                InsertOne(';');
+                InsertOne('\n');
+                InsertOne('}');
+                InsertOne('\n');
+                InsertOne('w');
+                InsertOne('h');
+                InsertOne('i');
+                InsertOne('l');
+                InsertOne('e');
+                InsertOne('(');
+                InsertOne(')');
+                if(m_text[m_cursor1 ] != ';')
+                {
+                    InsertOne(';');
+                    MoveChar(-12, false, false);
+                }
+                else
+                    MoveChar(-11, false, false);   
+                break;
+            }
+            else if (m_cursor1 > 1 && m_text[m_cursor1-1] == '{'
+                && m_cursor1<m_len && m_text[m_cursor1] == '}')
+            {
                 InsertOne(character);
-                MoveChar(-1, false, false);
+                InsertOne(';');
+                InsertOne(character);
+                MoveChar(-2, false, false);
                 break;
             }
             //else : non break ok
@@ -2942,7 +2972,6 @@ void CEdit::DeleteOne(const int dir)
         assert(m_cursor1!=m_cursor2);
             //TODO BCE : to study
     }
-
     if ( m_cursor1 > m_cursor2 )
         Math::Swap(m_cursor1, m_cursor2);
     hole = m_cursor2-m_cursor1;
