@@ -1013,7 +1013,7 @@ void CEdit::Draw()
             end.x   = dim.x-MARGX*2.0f;
             start.y = ppos.y-(m_bMulti?0.0f:MARGY1);
             end.y   = m_lineHeight;
-            DrawHorizontalGradient(start, end, Gfx::Color(0.996f, 0.675f, 0.329f, 1.0f), Gfx::Color(1.000f, 0.898f, 0.788f, 1.0f));  // fond orange d�grad� ->
+            DrawHorizontalGradient(start, end, Gfx::Color(0.996f, 0.675f, 0.329f, 1.0f), Gfx::Color(1.000f, 0.898f, 0.788f, 1.0f));  // gradient orange background ->
         }
 
         // Image \image; ?
@@ -2643,34 +2643,31 @@ void CEdit::Insert(char character)
     }
     else if ( m_bAutoIndent )
     {
-        if (character == '{')
+        switch(character)
         {
+        case '{':
+        case '(':
             InsertOne(character);
-            InsertOne('}');
+            if(character=='{')
+                InsertOne('}');
+            else
+                InsertOne(')');
             MoveChar(-1, false, false);
-        }
-        else if (character == '\t')
-        {
+            break;
+        case '\t':
             for ( i=0 ; i<m_engine->GetEditIndentValue() ; i++ )
-            {
                 InsertOne(' ');
-            }
-        }
-        else if (character == '\n')
-        {
+            break;
+        case '\n':
             if (m_cursor1 > 1 && m_text[m_cursor1-1] == '{')
             {
                 InsertOne(character);
-                InsertOne('\n');
-                MoveChar(-1, false, false);
-            }
-            else
-            {
                 InsertOne(character);
+                MoveChar(-1, false, false);
+                break;
             }
-        }
-        else
-        {
+            //else : non break ok
+        default:
             InsertOne(character);
         }
     }
@@ -2759,9 +2756,19 @@ void CEdit::DeleteOne(int dir)
             m_cursor2 ++;
         }
     }
-
+    else    //next test ok by construction in previous case
     if ( m_cursor1 > m_cursor2 )  Math::Swap(m_cursor1, m_cursor2);
     hole = m_cursor2-m_cursor1;
+    
+    //helper : delete left '(' in "()" delete boths + idem for '{' with "{}"
+    if(1==hole && (
+            ('('==m_text[m_cursor1] && ')'==m_text[m_cursor2])
+        ||  ('{'==m_text[m_cursor1] && '}'==m_text[m_cursor2])))
+    {
+        ++m_cursor2;
+        ++hole;
+    }
+
     end = m_len-hole;
     for ( i=m_cursor1 ; i<end ; i++ )
     {
