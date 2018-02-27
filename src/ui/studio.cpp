@@ -1212,7 +1212,7 @@ void CStudio::StartDialog(StudioDialog type)
             UpdateChangeEdit();
         }
 
-        pe->SetCursor(999, 0);  // selects all
+        pe->SetCursor(pe->GetTextLength(), 0);  // selects all
         m_interface->SetFocus(pe);
     }
 
@@ -1467,7 +1467,7 @@ void CStudio::UpdateChangeList()
     std::string name = pl->GetItemName(pl->GetSelect());
     name = name.substr(0, name.find_first_of("\t"));
     SetFilenameField(pe, name);
-    pe->SetCursor(999, 0);  // selects all
+    pe->SetCursor(pe->GetTextLength(), 0);  // selects all
     m_interface->SetFocus(pe);
 
     UpdateDialogAction();
