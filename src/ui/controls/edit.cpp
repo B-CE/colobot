@@ -337,7 +337,7 @@ bool CEdit::EventProcess(const Event &event)
 
         if ( data->key == KEY(a) && !bShift && bControl )
         {
-            SetCursor(999999, 0);
+            SetCursor(m_len, 0);
             return true;
         }
 
