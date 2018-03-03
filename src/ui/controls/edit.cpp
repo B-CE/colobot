@@ -2658,9 +2658,12 @@ void CEdit::Insert(char character)
         {
         case '{':
         case '(':
+        case '[':
             InsertOne(character);
             if(character=='{')
                 InsertOne('}');
+            else if(character=='[')
+                InsertOne(']');
             else
                 InsertOne(')');
             MoveChar(-1, false, false);
@@ -2801,13 +2804,70 @@ void CEdit::DeleteOne(int dir)
     if ( m_cursor1 > m_cursor2 )  Math::Swap(m_cursor1, m_cursor2);
     hole = m_cursor2-m_cursor1;
 
-    //helper : delete left '(' in "()" delete boths + idem for '{' with "{}"
-    if(1==hole && (
-            ('('==m_text[m_cursor1] && ')'==m_text[m_cursor2])
-        ||  ('{'==m_text[m_cursor1] && '}'==m_text[m_cursor2])))
+    if(1==hole)
     {
-        ++m_cursor2;
-        ++hole;
+        //helper : delete left '(' in "()" delete boths 
+        //helper : delete left '{' in "{}" delete boths 
+        //helper : delete left '[' in "[]" delete boths 
+        if(    ('('==m_text[m_cursor1] && ')'==m_text[m_cursor2])
+            || ('{'==m_text[m_cursor1] && '}'==m_text[m_cursor2])
+            || ('['==m_text[m_cursor1] && ']'==m_text[m_cursor2]))
+        {
+            ++m_cursor2;
+            ++hole;
+        }
+        //helper : if block with no instruction delete both brackets{}
+        //  and replace by empty instruction
+        else if( 0<=m_cursor1 && m_len-2>m_cursor2 && m_bAutoIndent &&
+            (  '{'==m_text[m_cursor1]
+            && '\n'==m_text[m_cursor2]
+            && '}'==m_text[m_cursor2+1]
+            && '\n'==m_text[m_cursor2+2] ))
+        {
+            ++m_cursor2;
+            ++hole;
+            m_text[m_cursor2]=';';
+        }
+        //helper : if block with no instruction delete both brackets{}
+        //  and replace by empty instruction (again, slide)
+        else if( 0<m_cursor1 && m_len-1>m_cursor2 && m_bAutoIndent &&
+            (  '{'==m_text[m_cursor1-1]
+            && '\n'==m_text[m_cursor1]
+            && '}'==m_text[m_cursor2]
+            && '\n'==m_text[m_cursor2+1] ))
+        {
+            --m_cursor1;
+            ++hole;
+            m_text[m_cursor2]=';';
+        }
+        //helper : if block with empty instruction delete both brackets{}
+        else if( 0<=m_cursor1 && m_len-4>m_cursor2 && m_bAutoIndent &&
+            (  '{'==m_text[m_cursor1]
+            && '\n'==m_text[m_cursor2]
+            && ';'==m_text[m_cursor2+1]
+            && '\n'==m_text[m_cursor2+2]
+            && '}'==m_text[m_cursor2+3]
+            && '\n'==m_text[m_cursor2+4] ))
+        {
+            m_cursor2+=3;
+            hole+=3;
+            m_text[m_cursor2]=';';
+        }
+        //helper : if block with empty instruction delete both brackets{}
+        // (again - slide)
+        else if( 2<m_cursor1 && m_len-2>m_cursor2 && m_bAutoIndent &&
+            (  '{'==m_text[m_cursor1-1]
+            && '\n'==m_text[m_cursor1]
+            && ';'==m_text[m_cursor2]
+            && '\n'==m_text[m_cursor2+1]
+            && '}'==m_text[m_cursor2+2]
+            && '\n'==m_text[m_cursor2+3]))
+        {
+            m_cursor1--;
+            m_cursor2+=2;
+            hole+=3;
+            m_text[m_cursor2]=';';
+        }
     }
 
     end = m_len-hole;
