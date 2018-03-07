@@ -2593,9 +2593,7 @@ void CEdit::Insert(char character)
     int     i, level, tab;
 
     if ( !m_bEdit )
-    {
         return;
-    }
 
     if ( !m_bMulti )  // single-line?
     {
@@ -2612,9 +2610,7 @@ void CEdit::Insert(char character)
             InsertOne(character);
             level = IndentCompute();
             for ( i=0 ; i<level ; i++ )
-            {
                 InsertOne('\t');
-            }
         }
         else if ( character == '{' )
         {
@@ -2637,9 +2633,7 @@ void CEdit::Insert(char character)
             InsertOne(character);
         }
         else
-        {
             InsertOne(character);
-        }
     }
     else if ( m_bAutoIndent )
     {
@@ -2675,9 +2669,7 @@ void CEdit::Insert(char character)
         }
     }
     else
-    {
         InsertOne(character);
-    }
 
     Justif();
     ColumnFix();
@@ -2707,9 +2699,7 @@ void CEdit::InsertOne(char character)
         m_text[i] = m_text[i-1];  // shoot
 
         if ( m_format.size() > static_cast<unsigned int>(i) )
-        {
             m_format[i] = m_format[i-1];  // shoot
-        }
     }
 
     m_len ++;
@@ -2874,16 +2864,11 @@ int CEdit::IndentTabCount()
 void CEdit::IndentTabAdjust(int number)
 {
     int     i;
-
     for ( i=0 ; i<number ; i++ )  // add?
-    {
         InsertOne('\t');
-    }
 
     for ( i=0 ; i>number ; i-- )  // delete?
-    {
         DeleteOne(-1);
-    }
 }
 
 
@@ -2982,17 +2967,29 @@ bool CEdit::MinMaj(bool bMaj)
 
 
 // Cut all text lines.
+//  postCond : upd : m_lineOffset & m_lineIndent, m_lineTotal, m_lineFirst
 
 void CEdit::Justif()
 {
     float   width, size, indentLength = 0.0f;
-    int     i, j, k, line, indent;
-    bool    bDual, bString, bRem;
+    int i=0,                    //pos of eol (current one)
+        j,                      //current pos car
+        k=0,                    //mem pos beg of line
+        indent=0,               //current line?? indentation
+        iParenthesis=0,         //inside parenthesis => add identation
+        iSubIndentCurrent=0,    // indentation for current sub instruction (after do, else,...)
+        iSubIndentNext=0;       // indent next instruction(after : if(..),do,else,while...
+    bool    bDual=false,        // ? (big title)  {FONT_MASK_TITLE & FONT_TITLE_BIG}
+        bString=false,          // into a string
+        bRem=false,             // into a single line comment
+        bRemMultiLine=false;    // into a multi line comment
+
+std::vector<int> stackDo;  //helper for next "while"
+std::vector<int> stackIf;  //helper for opt "else" placement
 
     m_lineOffset.clear();
     m_lineIndent.clear();
 
-    indent = 0;
     m_lineTotal = 0;
     m_lineOffset.push_back( 0 );
     m_lineIndent.push_back( indent );
@@ -3049,32 +3046,163 @@ void CEdit::Justif()
         }
 
         if ( i >= m_len )  break;
+            //note : don't analyse last line !! (that should be '}')
 
         if ( m_bAutoIndent )
         {
+            /// {m_lineOffset[m_lineTotal-1] == k}
             for ( j=m_lineOffset[m_lineTotal-1] ; j<i ; j++ )
             {
-                if ( !bRem && m_text[j] == '\"' )  bString = !bString;
-                if ( !bString &&
-                     m_text[j] == '/' &&
-                     m_text[j+1] == '/' )  bRem = true;
-                if ( m_text[j] == '\n' )  bString = bRem = false;
-                if ( m_text[j] == '{' && !bString && !bRem )  indent ++;
-                if ( m_text[j] == '}' && !bString && !bRem )  indent --;
-            }
-            if ( indent < 0 )  indent = 0;
+                if(!bRem && !bString && !bRemMultiLine)
+                    switch(m_text[j])
+                    {
+                    case '\"':
+                        bString=true;
+                        break;
+                    case '/':
+                        if(j+1<m_len)
+                        {
+                            if ( m_text[j+1] == '/' )
+                                bRem = true;
+                            else if ( m_text[j+1] == '*' )
+                                bRemMultiLine = true;
+                        }
+                        break;
+                    case '{':
+                        ++indent;
+                        if(0<iParenthesis)
+                        {
+                            //something is wrong, try rescue subs
+                            iParenthesis=0;
+                            if(0<iSubIndentCurrent)
+                                --iSubIndentCurrent;
+                            else
+                                if(0<iSubIndentNext)
+                                    --iSubIndentNext;
+                        }
+                        else if(iSubIndentCurrent>0)
+                            --iSubIndentCurrent;
+                        else if(iSubIndentNext>0)
+                            --iSubIndentNext;
+                        --m_lineIndent[m_lineTotal-1];
+                        break;
+                    case '}':
+                        --indent;
+                        break;
+                    case '(':
+                        ++iParenthesis; // shift for non endeed parenthesis in same line - 180219 - BCE
+                        break;
+                    case ')':
+                        if(0<iParenthesis)
+                            --iParenthesis; // shift for non endeed parenthesis in same line - 180219 - BCE
+                        if(0==iParenthesis && iSubIndentNext>0)
+                        {
+                            ++iSubIndentCurrent;
+                            --iSubIndentNext;
+                        }
+                        break;
+                    case 'f':   //case if?
+                        if(j>2 && j+1<m_len
+                            && IsDelimiter(m_text[j-2])
+                            && 'i'==m_text[j-1]
+                            // 'f'==m_text[j]
+                            && IsDelimiter(m_text[j+1]))
+                        {
+                            ++iSubIndentNext;
+                            stackIf.push_back( m_lineTotal-1 );
+                        }
+                        break;
+                    case 'o':   //case do..while?
+                        if(j>2 && j+1<m_len
+                            && IsDelimiter(m_text[j-2])
+                            && 'd'==m_text[j-1]
+                            // 'o'==m_text[j]
+                            && IsDelimiter(m_text[j+1]))
+                        {
+                            ++iSubIndentCurrent;
+                            stackDo.push_back( m_lineTotal-1 );
+                        }
+                        break;
+                    case 'r':   //case for?
+                        if(j>3 && j+1<m_len
+                            && IsDelimiter(m_text[j-3])
+                            && 'f'==m_text[j-2]
+                            && 'o'==m_text[j-1]
+                            // 'r'==m_text[j]
+                            && IsDelimiter(m_text[j+1]))
+                            ++iSubIndentNext;
+                        break;
+                    case 'e':   //case while or else?
+                        if(j>5 && j+1<m_len
+                            && IsDelimiter(m_text[j-5])
+                            && 'w'==m_text[j-4]
+                            && 'h'==m_text[j-3]
+                            && 'i'==m_text[j-2]
+                            && 'l'==m_text[j-1]
+                            // 'e'==m_text[j]
+                            && IsDelimiter(m_text[j+1]))
+                        {
+                            //stackDo ?
+                            ++iSubIndentNext;
+                        }
+                        else if(j>4 && j+1<m_len
+                            && IsDelimiter(m_text[j-4])
+                            && 'e'==m_text[j-3]
+                            && 'l'==m_text[j-2]
+                            && 's'==m_text[j-1]
+                            // 'e'==m_text[j]
+                            && IsDelimiter(m_text[j+1]))
+                        {
+                            //stackIf
+                            ++iSubIndentCurrent;
+                        }
+                        break;
+                    case ';':
+                        if(0<iParenthesis)
+                        {
+                            // inside a for OR something is wrong ??
+                            //if(0<iSubIndentCurrent)
+                            //    --iSubIndentCurrent;
+                            //else
+                            //    if(0<iSubIndentNext)
+                            //        --iSubIndentNext;
+                        }
+                        else if(iSubIndentCurrent>0)
+                            --iSubIndentCurrent;
+                        else if(iSubIndentNext>0)
+                            --iSubIndentNext;
+                        else
+                            ;//something is wrong ? OR NORMAL case !
+                    break;
+                    }
+                else    // bString || bRem || bRemMultiLine
+                {
+                    if ( !bRem && !bRemMultiLine && m_text[j] == '\"'
+                        && (j<0 || m_text[j-1]!='\\'))    //added:not an escaped dbl quote
+                        bString = false;
+                    else if ( !bString && bRemMultiLine
+                        && j+1<m_len
+                        && m_text[j]== '*' && m_text[j+1] == '/' )
+                        bRemMultiLine = false;
+                    if ( m_text[j] == '\n' )
+//nota: here is the pb of txt multiline KO !!! - TODO check for this regression between 1.10 & 1.11
+                        bString = bRem = false;
+                }
+            }   //for - end of line analysis
+            if ( indent < 0 )   //secu
+                indent = 0;
         }
-
         m_lineOffset.push_back( i );
-        m_lineIndent.push_back( indent );
+        m_lineIndent.push_back( indent + iSubIndentCurrent +iParenthesis );
         m_lineTotal ++;
         if ( bDual )
         {
             m_lineOffset.push_back( i );
-            m_lineIndent.push_back( indent );
+            m_lineIndent.push_back( indent + iSubIndentCurrent + iParenthesis );
             m_lineTotal ++;
         }
-        if ( k == i ) break;
+        if ( k == i )
+            break;
         k = i;
     }
 
@@ -3089,28 +3217,25 @@ void CEdit::Justif()
 
     if ( m_bAutoIndent )
     {
-        for ( i=0 ; i<=m_lineTotal ; i++ )
+        for (int i=0 ; i<=m_lineTotal ; i++ )
         {
             if ( m_text[m_lineOffset[i]] == '}' )
             {
-                if ( m_lineIndent[i] > 0 )  m_lineIndent[i] --;
+                if ( m_lineIndent[i] > 0 )
+                    m_lineIndent[i] --;
             }
         }
     }
-
+    //ensure cursor stay into displayed windows
     if ( m_bMulti )
     {
         if ( m_bEdit )
         {
-            line = GetCursorLine(m_cursor1);
+            int line = GetCursorLine(m_cursor1);
             if ( line < m_lineFirst )
-            {
                 m_lineFirst = line;
-            }
-            if ( line >= m_lineFirst+m_lineVisible )
-            {
+            else if ( line >= m_lineFirst+m_lineVisible )
                 m_lineFirst = line-m_lineVisible+1;
-            }
         }
     }
     else
