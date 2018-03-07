@@ -359,6 +359,11 @@ bool CEdit::EventProcess(const Event &event)
             m_event->AddEvent(Event(EVENT_STUDIO_SAVE));
         }
 
+        if ( data->key == KEY(w) && !bShift && bControl )
+        {
+            m_event->AddEvent(Event(EVENT_STUDIO_CANCEL));
+            return true;
+        }
         if ( data->key == KEY(z) && !bShift && bControl )
         {
             Undo();
@@ -629,10 +634,13 @@ bool CEdit::IsLinkPos(const Math::Point pos)
     if ( m_format.empty() )  return false;
 
     i = MouseDetect(pos);
-    if ( i == SIZE_MAX )      return false;
-    if ( i >= m_len )   return false;
+    if ( i == SIZE_MAX )
+        return false;
+    if ( i >= m_len )
+        return false;
 
-    if ( m_format.size() > i && ((m_format[i] & Gfx::FONT_MASK_LINK) != 0))  return true; // TODO
+    if ( m_format.size() > i && ((m_format[i] & Gfx::FONT_MASK_LINK) != 0))
+        return true;
     return false;
 }
 
@@ -646,7 +654,8 @@ void CEdit::MouseDoubleClick(const Math::Point mouse)
     if ( m_bMulti )  // Multi-line?
     {
         i = MouseDetect(mouse);
-        if ( i == SIZE_MAX )  return;
+        if ( i == SIZE_MAX )
+            return;
 
         while ( i > 0 )
         {
@@ -970,7 +979,8 @@ void CEdit::Draw()
     // Displays all lines.
     c1 = m_cursor1;
     c2 = m_cursor2;
-    if ( c1 > c2 )  Math::Swap(c1, c2);  // always c1 <= c2
+    if ( c1 > c2 )
+        Math::Swap(c1, c2);  // always c1 <= c2
 
     if ( m_bInsideScroll )
     {
@@ -979,7 +989,8 @@ void CEdit::Draw()
 
     if ( m_bAutoIndent )
     {
-        indentLength = m_engine->GetText()->GetCharWidth(static_cast<Gfx::UTF8Char>(' '), m_fontType, m_fontSize, 0.0f)
+        indentLength = m_engine->GetText()->GetCharWidth(
+            static_cast<Gfx::UTF8Char>(' '), m_fontType, m_fontSize, 0.0f)
                         * m_engine->GetEditIndentValue();
     }
 
@@ -1441,7 +1452,8 @@ const std::string& CEdit::GetText()const
 
 std::string CEdit::GetText(std::size_t max)const
 {
-    if ( m_len < max )  max = m_len;
+    if ( m_len < max )
+        max = m_len;
     if ( m_len > max )
     {
         --max;
@@ -2027,6 +2039,7 @@ bool CEdit::GetEditCap()const
 }
 
 // Mode management "hilitable" (that's the franch).
+//  ie: don't display carret nor highlight selection (but permit it :( )
 
 void CEdit::SetHighlightCap(const bool bEnable)
 {
@@ -2338,7 +2351,8 @@ void CEdit::MoveChar(int move, const bool bWord, const bool bSelect)
                 while ( m_cursor1 > 0 )
                 {
                     character = m_text[m_cursor1-1];
-                    if ( !IsSpace(character) )  break;
+                    if ( !IsSpace(character) )
+                        break;
                     do
                         --m_cursor1;
                     while (0<m_cursor1 && 0x80==(m_text[m_cursor1] & 0xC0)); //UTF8 mgt
@@ -2942,16 +2956,14 @@ void CEdit::DeleteOne(const int dir)
         if ( dir < 0 )
         {
             if ( m_cursor1 == 0 )  return;
-            //m_cursor1 --;
         }
         else
         {
             if ( m_cursor2 == m_len )  return;
-            //m_cursor2 ++;
         }
         MoveChar(dir, false, true);
         assert(m_cursor1!=m_cursor2);
-            //TODO BCE : to study
+            //TODO : to study
     }
     if ( m_cursor1 > m_cursor2 )
         Math::Swap(m_cursor1, m_cursor2);
@@ -3062,7 +3074,8 @@ void CEdit::DeleteWord(const int dir)
                 --m_cursor1;
             while (0<m_cursor1 && 0x80==(m_text[m_cursor1] & 0xC0)); //UTF8 mgt
         }
-        else m_cursor2 = m_cursor1;
+        else
+            m_cursor2 = m_cursor1;
 
         if ( IsBreaker(m_text[m_cursor1]) )
         {
@@ -3567,7 +3580,7 @@ std::vector<int> stackIf;  //helper for opt "else" placement
     {
         m_lineFirst = 0;
     }
-
+    m_text[m_len]='\0';  //fix end...
     UpdateScroll();
 
     m_timeBlink = 0.0f;  // lights the cursor immediately
@@ -3722,9 +3735,7 @@ void CEdit::SetFocus(CControl* control)
     CControl::SetFocus(control);
 
     if (oldFocus != m_bFocus)
-    {
         UpdateFocus();
-    }
 }
 
 void CEdit::UpdateFocus()

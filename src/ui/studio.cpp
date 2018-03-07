@@ -1322,6 +1322,7 @@ void CStudio::AdjustDialog()
             pli->SetTabs(1,  50.0f/640.0f, Gfx::TEXT_ALIGN_RIGHT);
             pli->SetTabs(2, 140.0f/640.0f);
 //?         pli->ShowSelect();
+//TODO : prev line to restablish (if it can be hide...)
         }
 
         ppos.y = wpos.y+30.0f/480.0f;
@@ -1647,6 +1648,7 @@ std::string CStudio::SearchDirectory(bool bCreate)
     }
     else
     {
+        assert(nullptr!=m_main->GetPlayerProfile());
         dir = m_main->GetPlayerProfile()->GetSaveFile("program");
     }
 

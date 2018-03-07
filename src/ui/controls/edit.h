@@ -262,9 +262,9 @@ protected:
     float       m_lineHeight;           // height of a row
     float       m_lineAscent;           // height above the baseline
     float       m_lineDescent;          // height below the baseline
-    int     m_lineVisible;          // total number of viewable lines
-    int     m_lineFirst;            // the first line displayed
-    int     m_lineTotal;            // number lines used (in m_lineOffset)
+    int         m_lineVisible;          // total number of viewable lines
+    int         m_lineFirst;            // the first line displayed
+    int         m_lineTotal;            // number lines used (in m_lineOffset)
     std::vector<std::size_t> m_lineOffset;
     std::vector<short>       m_lineIndent;
     std::vector<ImageLine>   m_image;

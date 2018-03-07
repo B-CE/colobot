@@ -210,7 +210,7 @@ long CBotToken::GetKeywordId()const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-std::string CBotToken::GetString()const
+const std::string CBotToken::GetString()const
 {
     return m_text;
 }
