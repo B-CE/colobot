@@ -683,7 +683,8 @@ void CEdit::MouseClick(const Math::Point mouse)
     std::size_t i;
 
     i = MouseDetect(mouse);
-    if ( i == SIZE_MAX )  return;
+    if ( i == SIZE_MAX )
+        return;
 
     if ( m_bEdit || m_bHilite )
     {
@@ -2843,7 +2844,7 @@ void CEdit::Insert(const char character)
                 InsertOne(' ');
             break;
         case '\n':
-            if (m_cursor1>2  //after do => auto "\n{\n;\n}\n while();" insertion 
+            if (m_cursor1>2  //after do => auto "\n{\n;\n}\n while();" insertion
                 && m_text[m_cursor1-2] == 'd' && m_text[m_cursor1-1] == 'o'
                 && ( m_cursor1>m_len
                   || m_text[m_cursor1 ] != '\n' || m_text[m_cursor1+1] != '{'))
@@ -2868,7 +2869,7 @@ void CEdit::Insert(const char character)
                     MoveChar(-12, false, false);
                 }
                 else
-                    MoveChar(-11, false, false);   
+                    MoveChar(-11, false, false);
                 break;
             }
             else if (m_cursor1 > 1 && m_text[m_cursor1-1] == '{'
@@ -2981,9 +2982,9 @@ void CEdit::DeleteOne(const int dir)
 
     if(1==hole)
     {
-        //helper : delete left '(' in "()" delete boths 
-        //helper : delete left '{' in "{}" delete boths 
-        //helper : delete left '[' in "[]" delete boths 
+        //helper : delete left '(' in "()" delete boths
+        //helper : delete left '{' in "{}" delete boths
+        //helper : delete left '[' in "[]" delete boths
         if(    ('('==m_text[m_cursor1] && ')'==m_text[m_cursor2])
             || ('{'==m_text[m_cursor1] && '}'==m_text[m_cursor2])
             || ('['==m_text[m_cursor1] && ']'==m_text[m_cursor2]))
@@ -2993,7 +2994,8 @@ void CEdit::DeleteOne(const int dir)
         }
         //helper : if block with no instruction delete both brackets{}
         //  and replace by empty instruction
-        else if( 0<=m_cursor1 && m_len-2>m_cursor2 && m_bAutoIndent &&
+        else if( //0<=m_cursor1 &&
+            m_len-2>m_cursor2 && m_bAutoIndent &&
             (  '{'==m_text[m_cursor1]
             && '\n'==m_text[m_cursor2]
             && '}'==m_text[m_cursor2+1]
@@ -3016,7 +3018,8 @@ void CEdit::DeleteOne(const int dir)
             m_text[m_cursor2]=';';
         }
         //helper : if block with empty instruction delete both brackets{}
-        else if( 0<=m_cursor1 && m_len-4>m_cursor2 && m_bAutoIndent &&
+        else if( //0<=m_cursor1 &&
+            m_len-4>m_cursor2 && m_bAutoIndent &&
             (  '{'==m_text[m_cursor1]
             && '\n'==m_text[m_cursor2]
             && ';'==m_text[m_cursor2+1]
@@ -3315,18 +3318,29 @@ bool CEdit::MinMaj(const bool bMaj)
 
 
 // Cut all text lines.
+//  postCond : upd : m_lineOffset & m_lineIndent, m_lineTotal, m_lineFirst
 
 void CEdit::Justif()
 {
     float   width, size, indentLength = 0.0f;
-    std::size_t     i, j, k;
-    bool    bDual, bString, bRem;
-    short   indent;
+    int i=0,                    //pos of eol (current one)
+        j,                      //current pos car
+        k=0,                    //mem pos beg of line
+        indent=0,               //current line?? indentation
+        iParenthesis=0,         //inside parenthesis => add identation
+        iSubIndentCurrent=0,    // indentation for current sub instruction (after do, else,...)
+        iSubIndentNext=0;       // indent next instruction(after : if(..),do,else,while...
+    bool    bDual=false,        // ? (big title)  {FONT_MASK_TITLE & FONT_TITLE_BIG}
+        bString=false,          // into a string
+        bRem=false,             // into a single line comment
+        bRemMultiLine=false;    // into a multi line comment
+
+std::vector<int> stackDo;  //helper for next "while"
+std::vector<int> stackIf;  //helper for opt "else" placement
 
     m_lineOffset.clear();
     m_lineIndent.clear();
 
-    indent = 0;
     m_lineTotal = 0;
     m_lineOffset.push_back( 0 );
     m_lineIndent.push_back( indent );
@@ -3385,33 +3399,164 @@ void CEdit::Justif()
             }
         }
 
-        if ( i >= m_len )  break;
+        if ( i >= m_len )
+            break; //note : don't analyse last line !! (that should be '}')
 
         if ( m_bAutoIndent )
         {
+            /// {m_lineOffset[m_lineTotal-1] == k}
             for ( j=m_lineOffset[m_lineTotal-1] ; j<i ; j++ )
             {
-                if ( !bRem && m_text[j] == '\"' )  bString = !bString;
-                if ( !bString &&
-                     m_text[j] == '/' &&
-                     m_text[j+1] == '/' )  bRem = true;
-                if ( m_text[j] == '\n' )  bString = bRem = false;
-                if ( m_text[j] == '{' && !bString && !bRem )  indent ++;
-                if ( m_text[j] == '}' && !bString && !bRem )  indent --;
-            }
-            if ( indent < 0 )  indent = 0;
+                if(!bRem && !bString && !bRemMultiLine)
+                    switch(m_text[j])
+                    {
+                    case '\"':
+                        bString=true;
+                        break;
+                    case '/':
+                        if(j+1<m_len)
+                        {
+                            if ( m_text[j+1] == '/' )
+                                bRem = true;
+                            else if ( m_text[j+1] == '*' )
+                                bRemMultiLine = true;
+                        }
+                        break;
+                    case '{':
+                        ++indent;
+                        if(0<iParenthesis)
+                        {
+                            //something is wrong, try rescue subs
+                            iParenthesis=0;
+                            if(0<iSubIndentCurrent)
+                                --iSubIndentCurrent;
+                            else
+                                if(0<iSubIndentNext)
+                                    --iSubIndentNext;
+                        }
+                        else if(iSubIndentCurrent>0)
+                            --iSubIndentCurrent;
+                        else if(iSubIndentNext>0)
+                            --iSubIndentNext;
+                        --m_lineIndent[m_lineTotal-1];
+                        break;
+                    case '}':
+                        --indent;
+                        break;
+                    case '(':
+                        ++iParenthesis; // shift for non endeed parenthesis in same line - 180219 - BCE
+                        break;
+                    case ')':
+                        if(0<iParenthesis)
+                            --iParenthesis; // shift for non endeed parenthesis in same line - 180219 - BCE
+                        if(0==iParenthesis && iSubIndentNext>0)
+                        {
+                            ++iSubIndentCurrent;
+                            --iSubIndentNext;
+                        }
+                        break;
+                    case 'f':   //case if?
+                        if(j>2 && j+1<m_len
+                            && IsDelimiter(m_text[j-2])
+                            && 'i'==m_text[j-1]
+                            // 'f'==m_text[j]
+                            && IsDelimiter(m_text[j+1]))
+                        {
+                            ++iSubIndentNext;
+                            stackIf.push_back( m_lineTotal-1 );
+                        }
+                        break;
+                    case 'o':   //case do..while?
+                        if(j>2 && j+1<m_len
+                            && IsDelimiter(m_text[j-2])
+                            && 'd'==m_text[j-1]
+                            // 'o'==m_text[j]
+                            && IsDelimiter(m_text[j+1]))
+                        {
+                            ++iSubIndentCurrent;
+                            stackDo.push_back( m_lineTotal-1 );
+                        }
+                        break;
+                    case 'r':   //case for?
+                        if(j>3 && j+1<m_len
+                            && IsDelimiter(m_text[j-3])
+                            && 'f'==m_text[j-2]
+                            && 'o'==m_text[j-1]
+                            // 'r'==m_text[j]
+                            && IsDelimiter(m_text[j+1]))
+                            ++iSubIndentNext;
+                        break;
+                    case 'e':   //case while or else?
+                        if(j>5 && j+1<m_len
+                            && IsDelimiter(m_text[j-5])
+                            && 'w'==m_text[j-4]
+                            && 'h'==m_text[j-3]
+                            && 'i'==m_text[j-2]
+                            && 'l'==m_text[j-1]
+                            // 'e'==m_text[j]
+                            && IsDelimiter(m_text[j+1]))
+                        {
+                            //stackDo ?
+                            ++iSubIndentNext;
+                        }
+                        else if(j>4 && j+1<m_len
+                            && IsDelimiter(m_text[j-4])
+                            && 'e'==m_text[j-3]
+                            && 'l'==m_text[j-2]
+                            && 's'==m_text[j-1]
+                            // 'e'==m_text[j]
+                            && IsDelimiter(m_text[j+1]))
+                        {
+                            //stackIf
+                            ++iSubIndentCurrent;
+                        }
+                        break;
+                    case ';':
+                        if(0<iParenthesis)
+                        {
+                            // inside a for OR something is wrong ??
+                            //if(0<iSubIndentCurrent)
+                            //    --iSubIndentCurrent;
+                            //else
+                            //    if(0<iSubIndentNext)
+                            //        --iSubIndentNext;
+                        }
+                        else if(iSubIndentCurrent>0)
+                            --iSubIndentCurrent;
+                        else if(iSubIndentNext>0)
+                            --iSubIndentNext;
+                        else
+                            ;//something is wrong ? OR NORMAL case !
+                    break;
+                    }
+                else    // bString || bRem || bRemMultiLine
+                {
+                    if ( !bRem && !bRemMultiLine && m_text[j] == '\"'
+                        && (j<0 || m_text[j-1]!='\\'))    //added:not an escaped dbl quote
+                        bString = false;
+                    else if ( !bString && bRemMultiLine
+                        && j+1<m_len
+                        && m_text[j]== '*' && m_text[j+1] == '/' )
+                        bRemMultiLine = false;
+                    if ( m_text[j] == '\n' )
+//nota: here is the pb of txt multiline KO !!! - TODO check for this regression between 1.10 & 1.11
+                        bString = bRem = false;
+                }
+            }   //for - end of line analysis
+            if ( indent < 0 )   //secu
+                indent = 0;
         }
-
         m_lineOffset.push_back( i );
-        m_lineIndent.push_back( indent );
+        m_lineIndent.push_back( indent + iSubIndentCurrent +iParenthesis );
         m_lineTotal ++;
         if ( bDual )
         {
             m_lineOffset.push_back( i );
-            m_lineIndent.push_back( indent );
+            m_lineIndent.push_back( indent + iSubIndentCurrent + iParenthesis );
             m_lineTotal ++;
         }
-        if ( k == i ) break;
+        if ( k == i )
+            break;
         k = i;
     }
 
@@ -3430,24 +3575,21 @@ void CEdit::Justif()
         {
             if ( m_text[m_lineOffset[i]] == '}' )
             {
-                if ( m_lineIndent[i] > 0 )  m_lineIndent[i] --;
+                if ( m_lineIndent[i] > 0 )
+                    m_lineIndent[i] --;
             }
         }
     }
-
+    //ensure cursor stay into displayed windows
     if ( m_bMulti )
     {
         if ( m_bEdit )
         {
             int line = GetCursorLine(m_cursor1);
             if ( line < m_lineFirst )
-            {
                 m_lineFirst = line;
-            }
             else if ( line >= m_lineFirst+m_lineVisible )
-            {
                 m_lineFirst = line-m_lineVisible+1;
-            }
         }
     }
     else
