@@ -129,6 +129,11 @@ public:
 
     void        SetMaxChar(const std::size_t max);
     std::size_t GetMaxChar()const;
+        //  TODO : CHOICE between 2 options
+        //      1/ max size
+        //          (simpliest & take care not adding sub of UTF8)
+        //      2/ nb max printable char (UTF8 char)
+        //          (+ logic: used to limit occupation into UI)
 
     void        SetEditCap(const bool bMode);
     bool        GetEditCap()const;
@@ -205,7 +210,7 @@ protected:
     void        ColumnFix();
     void        Insert(const char character);
     void        InsertOne(const char character);
-
+    void        InsertTab(const short nbTabToInsert = 1);
     // Inserts a string (ended by a null char)
     void InsertTxt(const char* str);
     inline void InsertTxt(const std::string& str)
@@ -240,26 +245,26 @@ protected:
     std::size_t m_maxChar;
     std::string m_text;             // text (without zero terminator)
     std::vector<Gfx::FontMetaChar> m_format;           // format characters
-
     std::size_t m_len;              // length used in m_text
     std::size_t m_cursor1;          // offset cursor
     std::size_t m_cursor2;          // offset cursor
 
-    bool                     m_bMulti;           // true -> multi-line
-    bool                     m_bEdit;            // true -> editable
-    bool                     m_bHilite;          // true -> hilitable
-    bool                     m_bInsideScroll;        // true -> lift as part
-    bool                     m_bDisplaySpec;         // true -> displays the special characters
-    bool                     m_bMultiFont;           // true -> more fonts possible
-    bool                     m_bSoluce;          // true -> shows the links-solution
-    bool                     m_bGeneric;         // true -> generic that defile
-    bool                     m_bAutoIndent;          // true -> automatic indentation
-    float                    m_lineHeight;           // height of a row
-    float                    m_lineAscent;           // height above the baseline
-    float                    m_lineDescent;          // height below the baseline
-    int                      m_lineVisible;          // total number of viewable lines
-    int                      m_lineFirst;            // the first line displayed
-    int                      m_lineTotal;            // number lines used (in m_lineOffset)
+    bool        m_bMulti;           // true -> multi-line
+    bool        m_bEdit;            // true -> editable
+    bool        m_bHilite;          // true -> hilitable
+                                    // (ie display carret & display selection)
+    bool        m_bInsideScroll;        // true -> lift as part
+    bool        m_bDisplaySpec;         // true -> displays the special characters
+    bool        m_bMultiFont;           // true -> more fonts possible
+    bool        m_bSoluce;          // true -> shows the links-solution
+    bool        m_bGeneric;         // true -> generic that defile
+    bool        m_bAutoIndent;          // true -> automatic indentation
+    float       m_lineHeight;           // height of a row
+    float       m_lineAscent;           // height above the baseline
+    float       m_lineDescent;          // height below the baseline
+    int     m_lineVisible;          // total number of viewable lines
+    int     m_lineFirst;            // the first line displayed
+    int     m_lineTotal;            // number lines used (in m_lineOffset)
     std::vector<std::size_t> m_lineOffset;
     std::vector<short>       m_lineIndent;
     std::vector<ImageLine>   m_image;
@@ -281,7 +286,8 @@ protected:
     bool        m_bUndoForce;
     OperUndo    m_undoOper;
     std::array<EditUndo, EDITUNDOMAX> m_undo;
-};
 
+    friend class CEditValue;    //calls SetFocus()
+};
 
 }

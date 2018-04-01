@@ -87,5 +87,9 @@ short Utf8CharSizeAt(const std::string &str, const std::size_t pos);
 //! Returns the length in characters of UTF-8 string \a str
 std::size_t Utf8StringLength(const std::string &str);
 
+//! Returns the length in UTF8 characters of string \a str
+//! if iTabSize!=1, returns the length in visible characters equivalent
+std::size_t Utf8StringLength(const char*const str,const std::size_t from,const std::size_t to, const short iTabSize=1);
+
 } // namespace StrUtil
 

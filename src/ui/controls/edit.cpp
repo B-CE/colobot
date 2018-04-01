@@ -20,13 +20,14 @@
 
 #include "ui/controls/edit.h"
 
-#include "common/config.h"
 
 #include "app/app.h"
 #include "app/input.h"
 
+#include "common/config.h"
 #include "common/logger.h"
 #include "common/make_unique.h"
+#include "common/stringutils.h"
 
 #include "common/resources/inputstream.h"
 #include "common/resources/outputstream.h"
@@ -40,9 +41,8 @@
 #include "ui/controls/scroll.h"
 
 #include <SDL.h>
-#include <boost/algorithm/string.hpp>
-
 #include <cstring>
+#include <boost/algorithm/string.hpp>
 
 namespace Ui
 {
@@ -2684,19 +2684,14 @@ bool CEdit::Paste()
     bool    bOk;
     short   j;      //subIndex for multiBytes UTF8
     int     iTabToInsert=0;
-    int     iTmp; //temp for tab space equivalant insertion
 
     if ( !m_bEdit )
-    {
         return false;
-    }
 
     text = SDL_GetClipboardText(); // TODO: Move to CApplication
 
     if ( text == nullptr )
-    {
         return false;
-    }
 
     UndoMemorize(OPERUNDO_SPEC);
     for (std::size_t i = 0; i<strlen(text); ++i)
@@ -2719,8 +2714,7 @@ bool CEdit::Paste()
         }
         if (0<iTabToInsert && m_bAutoIndent)
         {
-            for (iTmp=m_engine->GetEditIndentValue()*iTabToInsert; iTmp>0; --iTmp)
-                InsertOne(' ');
+            InsertTab(iTabToInsert);
             iTabToInsert=0;
         }
         //control UTF8 validity of injected elements
@@ -2758,8 +2752,7 @@ bool CEdit::Paste()
     }
     if (0<iTabToInsert && m_bAutoIndent && 0<m_cursor1
         && (m_cursor1>=m_len || '\n'!=m_text[m_cursor1]))
-        for (iTmp=m_engine->GetEditIndentValue() ; iTmp>0; --iTmp)
-            InsertOne(' ');
+        InsertTab();
     SDL_free(text);
     Justif();
     ColumnFix();
@@ -2854,8 +2847,7 @@ void CEdit::Insert(const char character)
             MoveChar(-1, false, false);
             break;
         case '\t':
-            for ( i=0 ; i<m_engine->GetEditIndentValue() ; i++ )
-                InsertOne(' ');
+            InsertTab();
             break;
         case '\n':
             if (m_cursor1>2  //after do => auto "\n{\n;\n}\n while();" insertion
@@ -2864,6 +2856,7 @@ void CEdit::Insert(const char character)
                   || m_text[m_cursor1 ] != '\n' || m_text[m_cursor1+1] != '{'))
             {
                 InsertOne(character);
+//TODO USE insertText!!!
                 InsertOne('{');
                 InsertOne('\n');
                 InsertOne(';');
@@ -2932,7 +2925,7 @@ void CEdit::InsertOne(const char character)
     m_text.resize( m_text.size() + 1, '\0' );
     m_format.resize( m_format.size() + 1, m_fontType );
 
-    for ( i=m_len ; i>m_cursor1 ; i-- ) //nota : m_cursor1>=0
+    for ( i=m_len ; i>m_cursor1 ; i-- )
     {
         m_text[i] = m_text[i-1];  // shoot
 
@@ -3774,7 +3767,7 @@ void CEdit::InsertTxt(const char* str)
     if (m_len+len>=GetMaxChar())
     {
         len = GetMaxChar()-m_len;
-        if(len>0 && len<strlen(str) && 0x80==(str[len] & 0xC0))
+        if (len>0 && len<strlen(str) && 0x80==(str[len] & 0xC0))
         {   //FIX issue : can cut UTF8 char !
             do
                 --len;
@@ -3784,8 +3777,39 @@ void CEdit::InsertTxt(const char* str)
         GetLogger()->Warn("CEdit::InsertTxt cut, reject <%s>\n",str+len);
         return;
     }
-    for(std::size_t i=0;i<len;++i)
+    for (std::size_t i=0;i<len;++i)
         InsertOne(str[i]);
+}
+
+/**
+ * Insert nbTabToInsert tabulations
+ *     took in account current emplacement
+ * @param nbTabToInsert :nb of tabulation to insert
+ */
+void CEdit::InsertTab(short nbTabToInsert)
+{
+    if (!m_bEdit || 1>nbTabToInsert)
+        return;
+    UndoMemorize(OPERUNDO_INSERT);
+
+    if (m_cursor1!=m_cursor2)
+        DeleteOne(0);  // deletes the selected characters
+    // assert(m_cursor1==m_cursor2);
+    for (--m_cursor2; m_cursor2>0 && '\n'!=m_text[m_cursor2]; --m_cursor2)
+        ;
+    short delta=//m_cursor1-m_cursor2; //nota: can't contain '\t'
+        StrUtils::Utf8StringLength(
+            m_text.c_str(),
+            m_cursor2+1,
+            m_cursor1,
+            m_engine->GetEditIndentValue());
+    if (delta)
+        delta %= m_engine->GetEditIndentValue();
+    m_cursor2=m_cursor1;
+    for (short iTmp=m_engine->GetEditIndentValue()*nbTabToInsert - delta
+        ; iTmp>0 ; --iTmp)
+        InsertOne(' ');
+    m_bUndoForce = false;
 }
 
 }

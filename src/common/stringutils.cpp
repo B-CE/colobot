@@ -18,14 +18,14 @@
  */
 
 
+#include "common/logger.h"
 #include "common/stringutils.h"
 
+#include <cassert>
 #include <cstdarg>
 #include <cstdio>
 #include <vector>
-
 #include <cstring>          // memset used for trace
-#include "common/logger.h"
 
 unsigned int StrUtils::HexStringToInt(const std::string& str)
 {
@@ -98,11 +98,11 @@ std::string StrUtils::UnicodeCharToUtf8(unsigned int ch)
         char ch2 = 0x80 | (ch & 0x3F);
         result += ch1;
         result += ch2;
-        GetLogger()->Trace("StrUtils::UnicodeCharToUtf8 2: %d <%s>\n",ch,result.c_str());
+        //GetLogger()->Trace("StrUtils::UnicodeCharToUtf8 2: %d <%s>\n",ch,result.c_str());
     }
-    else if(0xd800<=ch && ch<=0xdfff)   //invalid block of utf8
+    else if (0xd800<=ch && ch<=0xdfff)   //invalid block of utf8
         GetLogger()->Trace("StrUtils::UnicodeCharToUtf8 INVALID UNICODE CHAR: %d %c\n",ch,ch);
-    else if(ch<=0xFFFF)
+    else if (ch<=0xFFFF)
     {
         char ch1 = 0xE0 |  (ch >> 12);
         char ch2 = 0x80 | ((ch >> 6) & 0x3F);
@@ -110,7 +110,7 @@ std::string StrUtils::UnicodeCharToUtf8(unsigned int ch)
         result += ch1;
         result += ch2;
         result += ch3;
-        GetLogger()->Trace("StrUtils::UnicodeCharToUtf8 3: %d <%s>\n",ch,result.c_str());
+        //GetLogger()->Trace("StrUtils::UnicodeCharToUtf8 3: %d <%s>\n",ch,result.c_str());
     }
     else if(ch<=0x10FFFF)
     {
@@ -122,7 +122,7 @@ std::string StrUtils::UnicodeCharToUtf8(unsigned int ch)
         result += ch2;
         result += ch3;
         result += ch4;
-        GetLogger()->Trace("StrUtils::UnicodeCharToUtf8 4: %d <%s>\n",ch,result.c_str());
+        //GetLogger()->Trace("StrUtils::UnicodeCharToUtf8 4: %d <%s>\n",ch,result.c_str());
     }
     else
         GetLogger()->Warn("StrUtils::UnicodeCharToUtf8 FAIL (size>=5? UTF16?): %d\n",ch);
@@ -149,7 +149,7 @@ unsigned int StrUtils::Utf8CharToUnicode(const std::string &ch)
         if (ch.size() == 1)
         {
             result = static_cast<unsigned int>(ch[0]);
-            GetLogger()->Trace("StrUtils::Utf8CharToUnicode 1: <%s> %d\n",ch.c_str(),result);
+            //GetLogger()->Trace("StrUtils::Utf8CharToUnicode 1: <%s> %d\n",ch.c_str(),result);
         }
         else
             GetLogger()->Warn("StrUtils::Utf8CharToUnicode Bad UTF8 1 char input ? : <%s>\n",ch.c_str());
@@ -161,7 +161,7 @@ unsigned int StrUtils::Utf8CharToUnicode(const std::string &ch)
             unsigned int ch1 = (ch[0] & 0x1F) << 6;
             unsigned int ch2 = (ch[1] & 0x3F);
             result = ch1 | ch2;
-            GetLogger()->Trace("StrUtils::Utf8CharToUnicode 2: <%s> %d\n",ch.c_str(),result);
+            //GetLogger()->Trace("StrUtils::Utf8CharToUnicode 2: <%s> %d\n",ch.c_str(),result);
         }
         else
             GetLogger()->Warn("StrUtils::Utf8CharToUnicode Bad UTF8 2 char input ? : <%s>\n",ch.c_str());
@@ -176,7 +176,7 @@ unsigned int StrUtils::Utf8CharToUnicode(const std::string &ch)
             unsigned int ch2 = (ch[1] & 0x3F) << 6;
             unsigned int ch3 = (ch[2] & 0x3F);
             result = ch1 | ch2 | ch3;
-            GetLogger()->Trace("StrUtils::Utf8CharToUnicode 3: <%s> %d\n",ch.c_str(),result);
+            //GetLogger()->Trace("StrUtils::Utf8CharToUnicode 3: <%s> %d\n",ch.c_str(),result);
         }
         else
             GetLogger()->Warn("StrUtils::Utf8CharToUnicode Bad UTF8 3 char input ? : <%s>\n",ch.c_str());
@@ -190,7 +190,7 @@ unsigned int StrUtils::Utf8CharToUnicode(const std::string &ch)
             unsigned int ch3 = (ch[2] & 0x3F) << 6;
             unsigned int ch4 = (ch[3] & 0x3F) ;
             result = ch1 | ch2 | ch3 | ch4;
-            GetLogger()->Trace("StrUtils::Utf8CharToUnicode 4: <%s> %d\n",ch.c_str(),result);
+            //GetLogger()->Trace("StrUtils::Utf8CharToUnicode 4: <%s> %d\n",ch.c_str(),result);
         }
         else
             GetLogger()->Warn("StrUtils::Utf8CharToUnicode Bad UTF8 4 char input ? : <%s>\n",ch.c_str());
@@ -278,3 +278,23 @@ std::size_t StrUtils::Utf8StringLength(const std::string &str)
     return result;
 }
 
+std::size_t StrUtils::Utf8StringLength(const char*const str,const std::size_t from,const std::size_t to, const short iTabSize)
+{
+    std::size_t len = strlen(str);
+    assert(from<=len);
+    assert(to<=len);
+    assert(from<=to);
+    std::size_t result = 0;
+    std::size_t i = from;
+    while (i < to)
+    {
+        if('\t'==str[i])
+            result+=iTabSize;
+        // else if(1!=iTabSize && ('\n'==str[i] || '\r'==str[i]))
+        //     ;
+        else
+            ++result;
+        i += StrUtils::Utf8CharSizeAt(str, i);
+    }
+    return result;
+}
