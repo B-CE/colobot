@@ -20,13 +20,14 @@
 
 #include "ui/controls/edit.h"
 
-#include "common/config.h"
 
 #include "app/app.h"
 #include "app/input.h"
 
+#include "common/config.h"
 #include "common/logger.h"
 #include "common/make_unique.h"
+#include "common/stringutils.h"
 
 #include "common/resources/inputstream.h"
 #include "common/resources/outputstream.h"
@@ -40,9 +41,8 @@
 #include "ui/controls/scroll.h"
 
 #include <SDL.h>
-#include <boost/algorithm/string.hpp>
-
 #include <cstring>
+#include <boost/algorithm/string.hpp>
 
 namespace Ui
 {
@@ -2538,19 +2538,14 @@ bool CEdit::Paste()
     char    c;
     char*   text;
     int     iTabToInsert=0;
-    int     iTmp; //temp for tab space equivalant insertion
 
     if ( !m_bEdit )
-    {
         return false;
-    }
 
     text = SDL_GetClipboardText(); // TODO: Move to CApplication
 
     if ( text == nullptr )
-    {
         return false;
-    }
 
     UndoMemorize(OPERUNDO_SPEC);
     for (unsigned int i = 0; i<strlen(text); ++i)
@@ -2573,16 +2568,14 @@ bool CEdit::Paste()
         }
         if (0<iTabToInsert && m_bAutoIndent)
         {
-            for (iTmp=m_engine->GetEditIndentValue()*iTabToInsert; iTmp>0; --iTmp)
-                InsertOne(' ');
+            InsertTab(iTabToInsert);
             iTabToInsert=0;
         }
         InsertOne(c);
     }
     if (0<iTabToInsert && m_bAutoIndent && 0<m_cursor1
         && (m_cursor1>=m_len || '\n'!=m_text[m_cursor1]))
-        for (iTmp=m_engine->GetEditIndentValue() ; iTmp>0; --iTmp)
-            InsertOne(' ');
+        InsertTab();
     SDL_free(text);
     Justif();
     ColumnFix();
@@ -2668,12 +2661,7 @@ void CEdit::Insert(char character)
             MoveChar(-1, false, false);
         }
         else if (character == '\t')
-        {
-            for ( i=0 ; i<m_engine->GetEditIndentValue() ; i++ )
-            {
-                InsertOne(' ');
-            }
-        }
+            InsertTab();
         else if (character == '\n')
         {
             if (m_cursor1 > 1 && m_text[m_cursor1-1] == '{')
@@ -3302,6 +3290,37 @@ void CEdit::SetFocus(CControl* control)
 void CEdit::UpdateFocus()
 {
     CApplication::GetInstancePointer()->SetTextInput(m_bFocus, m_eventType);
+}
+
+/**
+ * Insert nbTabToInsert tabulations
+ *     took in account current emplacement
+ * @param nbTabToInsert :nb of tabulation to insert
+ */
+void CEdit::InsertTab(short nbTabToInsert)
+{
+    if(!m_bEdit || 1>nbTabToInsert)
+        return;
+    UndoMemorize(OPERUNDO_INSERT);
+
+    if(m_cursor1!=m_cursor2)
+        DeleteOne(0);  // deletes the selected characters
+    // assert(m_cursor1==m_cursor2);
+    for(--m_cursor2; m_cursor2>0 && '\n'!=m_text[m_cursor2]; --m_cursor2)
+        ;
+    short delta=//m_cursor1-m_cursor2; //nota: can't contain '\t'
+        StrUtils::Utf8StringLength(
+            m_text.c_str(),
+            m_cursor2+1,
+            m_cursor1,
+            m_engine->GetEditIndentValue());
+    if(delta)
+        delta %= m_engine->GetEditIndentValue();
+    m_cursor2=m_cursor1;
+    for(short iTmp=m_engine->GetEditIndentValue()*nbTabToInsert - delta
+        ; iTmp>0 ; --iTmp)
+        InsertOne(' ');
+    m_bUndoForce = false;
 }
 
 }

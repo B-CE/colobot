@@ -205,6 +205,7 @@ protected:
     void        ColumnFix();
     void        Insert(char character);
     void        InsertOne(char character);
+    void        InsertTab(const short nbTabToInsert = 1);
     void        Delete(int dir);
     void        DeleteOne(int dir);
     void        DeleteWord(int dir);

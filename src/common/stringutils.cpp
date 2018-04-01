@@ -20,10 +20,11 @@
 
 #include "common/stringutils.h"
 
+#include <cassert>
 #include <cstdarg>
 #include <cstdio>
 #include <vector>
-
+#include <cstring>
 
 unsigned int StrUtils::HexStringToInt(const std::string& str)
 {
@@ -189,9 +190,29 @@ std::size_t StrUtils::Utf8StringLength(const std::string &str)
     unsigned int i = 0;
     while (i < str.size())
     {
-        i += Utf8CharSizeAt(str, i);
+        i += StrUtils::Utf8CharSizeAt(str, i);
         ++result;
     }
     return result;
 }
 
+std::size_t StrUtils::Utf8StringLength(const char*const str,const std::size_t from,const std::size_t to, const short iTabSize)
+{
+    std::size_t len = strlen(str);
+    assert(from<=len);
+    assert(to<=len);
+    assert(from<=to);
+    std::size_t result = 0;
+    std::size_t i = from;
+    while (i < to)
+    {
+        if('\t'==str[i])
+            result+=iTabSize;
+        // else if(1!=iTabSize && ('\n'==str[i] || '\r'==str[i]))
+        //     ;
+        else
+            ++result;
+        i += StrUtils::Utf8CharSizeAt(str, i);
+    }
+    return result;
+}
