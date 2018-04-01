@@ -91,5 +91,8 @@ std::size_t Utf8StringLength(const std::string &str);
 //! if iTabSize!=1, returns the length in visible characters equivalent
 std::size_t Utf8StringLength(const char*const str,const std::size_t from,const std::size_t to, const short iTabSize=1);
 
+//! Returns the index of next UTF8 characters in UTF-8 string \a str
+std::size_t Utf8StringPosAfter(const char*const str,const std::size_t from, std::size_t move, const short iTabSize=1);
+
 } // namespace StrUtil
 

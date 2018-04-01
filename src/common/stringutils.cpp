@@ -298,3 +298,23 @@ std::size_t StrUtils::Utf8StringLength(const char*const str,const std::size_t fr
     }
     return result;
 }
+
+std::size_t StrUtils::Utf8StringPosAfter(const char*const str,const std::size_t from, std::size_t move, const short iTabSize)
+{
+    std::size_t len = strlen(str);
+    assert(from<=len);
+    std::size_t i = from;
+    while (move && i<len)
+    {
+        if('\t'==str[i])
+        {
+            if(move<iTabSize) //secu
+                break;
+            move-=iTabSize;
+        }
+        else
+            --move;
+        i += StrUtils::Utf8CharSizeAt(str, i);
+    }
+    return i;
+}

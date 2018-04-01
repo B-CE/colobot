@@ -188,7 +188,7 @@ protected:
     void        MouseClick(const Math::Point mouse);
     void        MouseMove(Math::Point mouse);
     void        MouseRelease(const Math::Point mouse);
-    std::size_t      MouseDetect(const Math::Point mouse);
+    std::size_t MouseDetect(const Math::Point mouse);
     void        MoveAdjust();
 
     void        HyperJump(const std::string& name, const std::string& marker);
@@ -204,7 +204,7 @@ protected:
     void        Scroll(const std::size_t pos, const bool bAdjustCursor);
     void        Scroll();
     void        MoveChar(int move, const bool bWord, const bool bSelect);
-    void        MoveLine(int move, const bool bWord, const bool bSelect);
+    void        MoveLine(const int move, const bool bSelect);
     void        MoveHome(const bool bWord, const bool bSelect);
     void        MoveEnd(const bool bEoF, const bool bSelect);
     void        ColumnFix();
@@ -247,7 +247,7 @@ protected:
     std::vector<Gfx::FontMetaChar> m_format;           // format characters
     std::size_t m_len;              // length used in m_text
     std::size_t m_cursor1;          // offset cursor
-    std::size_t m_cursor2;          // offset cursor
+    std::size_t m_cursor2;          // offset cursor (for selection)
 
     bool        m_bMulti;           // true -> multi-line
     bool        m_bEdit;            // true -> editable

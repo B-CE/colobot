@@ -397,23 +397,23 @@ bool CEdit::EventProcess(const Event &event)
             }
             if ( data->key == KEY(UP) && m_bMulti )
             {
-                MoveLine(-1, bControl, bShift);
+                MoveLine(-1, bShift);
                 return true;
             }
             if ( data->key == KEY(DOWN) && m_bMulti )
             {
-                MoveLine(1, bControl, bShift);
+                MoveLine(1, bShift);
                 return true;
             }
 
             if ( data->key == KEY(PAGEUP) && m_bMulti )  // PageUp ?
             {
-                MoveLine(-(m_lineVisible-1), bControl, bShift);
+                MoveLine(-(m_lineVisible-1), bShift);
                 return true;
             }
             if ( data->key == KEY(PAGEDOWN) && m_bMulti )  // PageDown ?
             {
-                MoveLine(m_lineVisible-1, bControl, bShift);
+                MoveLine(m_lineVisible-1, bShift);
                 return true;
             }
         }
@@ -2246,14 +2246,14 @@ void CEdit::Scroll(const std::size_t pos, const bool bAdjustCursor)
         // Cursor too high?
         if ( line < m_lineFirst )
         {
-            MoveLine(m_lineFirst-line, false, false);
+            MoveLine(m_lineFirst-line, false);
             return;
         }
 
         // Cursor too low?
         if ( line >= m_lineFirst+m_lineVisible )
         {
-            MoveLine(m_lineFirst+m_lineVisible-line-1, false, false);
+            MoveLine(m_lineFirst+m_lineVisible-line-1, false);
             return;
         }
     }
@@ -2493,84 +2493,56 @@ void CEdit::MoveChar(int move, const bool bWord, const bool bSelect)
     ColumnFix();
 }
 
-// Moves the cursor lines.
-
-void CEdit::MoveLine(const int move, const bool bWord, const bool bSelect)
+/**
+ * Change the cursor line.
+ * @param move   : nb lines up(<0) or down(>0) to shift
+ * @param bSelect: shift active
+ */
+void CEdit::MoveLine(const int move, const bool bSelect)
 {
-    float   column, indentLength = 0.0f;
-    int     i, line, c;
-
-    if ( move == 0 )  return;
-
-    for ( i=0 ; i>move //
-        && m_cursor1 > 0    // FIX risk of infinite loop.
-        ; i-- )  // back?
-    {
-        while ( m_cursor1 > 0 && m_text[m_cursor1-1] != '\n' )
-            m_cursor1 --;
-        if ( m_cursor1 != 0 )
-        {
-            m_cursor1 --;
-            while ( m_cursor1 > 0 )
-            {
-                if ( m_text[--m_cursor1] == '\n' )
-                {
-                    m_cursor1 ++;
-                    break;
-                }
-            }
-        }
-    }
-
-    for ( i=0 ; i<move //
-        && m_cursor1 < m_len    // FIX risk of infinite loop.
-        ; i++ )  // advance?
-    {
-        while ( m_cursor1 < m_len )
-        {
-            if ( m_text[m_cursor1++] == '\n' )
-                break;
-        }
-    }
-
-    line = GetCursorLine(m_cursor1);
-
-    column = m_column;
-    if ( m_bAutoIndent )
-    {
-        indentLength = m_engine->GetText()->GetCharWidth(static_cast<Gfx::UTF8Char>(' '), m_fontType, m_fontSize, 0.0f)
-                        * m_engine->GetEditIndentValue();
-        column -= indentLength*m_lineIndent[line];
-    }
-
-    if ( m_format.empty() )
-    {
-        c = m_engine->GetText()->Detect(
-            std::string(m_text.data()+m_lineOffset[line]),
-            m_fontType, m_fontSize,
-            m_lineOffset[line+1]-m_lineOffset[line]);
-    }
+    if ( 0==move )
+        return;
+    int   line = GetCursorLine(m_cursor1);
+    short pos = m_lineIndent[line]*m_engine->GetEditIndentValue()
+        +StrUtils::Utf8StringLength(
+            m_text.c_str(),
+            m_lineOffset[line],
+            m_cursor1,
+            m_engine->GetEditIndentValue());
+    if (0>move && line<-move)
+        line=0;
+    else if (line+move >= m_lineTotal)
+        line = m_lineTotal-1;
+    else
+        line += move;
+    m_cursor1 = m_lineIndent[line]*m_engine->GetEditIndentValue();
+    short nbCharNewLine = m_cursor1 +
+        StrUtils::Utf8StringLength(m_text.c_str(),
+            m_lineOffset[line],
+            m_lineOffset[line+1],
+            m_engine->GetEditIndentValue());
+    if (m_cursor1 >= pos)
+        m_cursor1 = m_lineOffset[line];
+    else if (nbCharNewLine <= pos)
+        m_cursor1 = m_lineOffset[line+1] - 1;
     else
     {
-        c = m_engine->GetText()->Detect(
-            std::string(m_text.data()+m_lineOffset[line]),
-            m_format.begin() + m_lineOffset[line],
-            m_format.end(),
-            m_fontSize,
-            m_lineOffset[line+1]-m_lineOffset[line]);
-    }
-
-    m_cursor1 = m_lineOffset[line]+c;
-    if (m_cursor1>m_len)    //PATCH, TODO : previous line(s) to FIX !
-    {
-        GetLogger()->Trace("MoveLine PATCH outside of text : cur:%d size:%d mem:%d\n\n", m_cursor1, m_len, m_text.size());
-        m_cursor1=m_len;
+        m_cursor1 = StrUtils::Utf8StringPosAfter(
+                m_text.c_str(),
+                m_lineOffset[line],
+                pos - m_cursor1,
+                m_engine->GetEditIndentValue());
+        if(m_len<=m_cursor1)
+            m_cursor1=m_len;
+        else if(m_cursor1>=m_lineOffset[line+1])
+            m_cursor1=m_lineOffset[line+1];
     }
     if (!bSelect)
         m_cursor2 = m_cursor1;
-
-    m_bUndoForce = true;
+   m_bUndoForce = true;
+    //in case of need, slide the text to stay into displayed window
     Justif();
+    //nota:Scroll call may suffisant
 }
 
 // Sets the horizontal position.
