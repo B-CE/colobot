@@ -199,7 +199,7 @@ protected:
     void        Scroll(int pos, bool bAdjustCursor);
     void        Scroll();
     void        MoveChar(int move, bool bWord, bool bSelect);
-    void        MoveLine(int move, bool bWord, bool bSelect);
+    void        MoveLine(const int move, const bool bSelect);
     void        MoveHome(bool bWord, bool bSelect);
     void        MoveEnd(bool bWord, bool bSelect);
     void        ColumnFix();
