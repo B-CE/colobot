@@ -36,7 +36,7 @@ namespace Ui
 class CScroll;
 
 //! max number of levels preserves
-const int EDITHISTORYMAX    = 50;
+const short EDITHISTORYMAX    = 50;
 //! max number of successive undo
 const short EDITUNDOMAX = 20;
 
@@ -102,6 +102,17 @@ struct HyperHistory
 };
 
 
+//  Context used-for-reindentation
+struct Ctxt
+{
+    Ctxt(const int curLine)
+    {
+        line=curLine;
+        nbInstAfter=0;
+    }
+    int     line;               //line
+    short   nbInstAfter = 0;    //nb of instructions after(max 1)
+};
 
 
 class CEdit : public CControl
@@ -111,7 +122,8 @@ public:
 
     virtual ~CEdit();
 
-    bool        Create(Math::Point pos, Math::Point dim, int icon, EventType eventType) override;
+    bool        Create(Math::Point pos, Math::Point dim, int icon,
+                       EventType eventType) override;
 
     void        SetPos(Math::Point pos) override;
     void        SetDim(Math::Point dim) override;
@@ -179,7 +191,8 @@ public:
     void        SetFontSize(const float size) override;
 
     bool        ClearFormat();
-    bool        SetFormat(const std::size_t cursor1, const std::size_t cursor2, const int format);
+    bool        SetFormat(const std::size_t cursor1, const std::size_t cursor2,
+                          const int format);
 
 protected:
     void        SendModifEvent();
@@ -194,10 +207,12 @@ protected:
     void        HyperJump(const std::string& name, const std::string& marker);
     bool        HyperAdd(const std::string& filename, const int firstLine);
 
-    void        DrawImage(Math::Point pos, std::string name, float width, float offset, float height, int nbLine);
+    void        DrawImage(Math::Point pos, std::string name, float width,
+                          float offset, float height, int nbLine);
     void        DrawBack(Math::Point pos, Math::Point dim);
 
-    void        DrawHorizontalGradient(Math::Point pos, Math::Point dim, Gfx::Color color1, Gfx::Color color2);
+    void        DrawHorizontalGradient(Math::Point pos, Math::Point dim,
+                                       Gfx::Color color1, Gfx::Color color2);
     void        DrawColor(Math::Point pos, Math::Point dim, Gfx::Color color);
 
     void        FreeImage();
@@ -212,7 +227,7 @@ protected:
     void        InsertOne(const char character);
     void        InsertTab(const short nbTabToInsert = 1);
     // Inserts a string (ended by a null char)
-    void InsertTxt(const char* str);
+    void        InsertTxt(const char* str);
     inline void InsertTxt(const std::string& str)
     {
         InsertTxt(str.c_str());
@@ -235,12 +250,17 @@ protected:
     void        UpdateScroll();
 
     void        SetFocus(CControl* control) override;
-    void        UpdateFocus();      // Start/stop text input mode, this toggles the on-screen keyboard
+    void        UpdateFocus();      // Start/stop text input mode,
+                                    // this toggles the on-screen keyboard
 
-    void        GetIndentedText(std::ostream& stream, const std::size_t start, const std::size_t end);
+    void        GetIndentedText(std::ostream& stream,
+                                const std::size_t start, const std::size_t end);
 
+private:
+    // check if next instruction begin with an "else"
+    bool        isNextInstElse(const std::size_t pos)const;
 protected:
-    std::unique_ptr<CScroll> m_scroll;           // vertical scrollbar on the right
+    std::unique_ptr<CScroll> m_scroll;    // vertical scrollbar on the right
 
     std::size_t m_maxChar;
     std::string m_text;             // text (without zero terminator)
@@ -253,25 +273,28 @@ protected:
     bool        m_bEdit;            // true -> editable
     bool        m_bHilite;          // true -> hilitable
                                     // (ie display carret & display selection)
-    bool        m_bInsideScroll;        // true -> lift as part
-    bool        m_bDisplaySpec;         // true -> displays the special characters
-    bool        m_bMultiFont;           // true -> more fonts possible
+    bool        m_bInsideScroll;    // true -> lift as part
+    bool        m_bDisplaySpec;     // true -> displays the special characters
+    bool        m_bMultiFont;       // true -> more fonts possible
     bool        m_bSoluce;          // true -> shows the links-solution
     bool        m_bGeneric;         // true -> generic that defile
-    bool        m_bAutoIndent;          // true -> automatic indentation
-    float       m_lineHeight;           // height of a row
-    float       m_lineAscent;           // height above the baseline
-    float       m_lineDescent;          // height below the baseline
-    int         m_lineVisible;          // total number of viewable lines
-    int         m_lineFirst;            // the first line displayed
-    int         m_lineTotal;            // number lines used (in m_lineOffset)
+    bool        m_bAutoIndent;      // true -> automatic indentation
+    float       m_lineHeight;       // height of a row
+    float       m_lineAscent;       // height above the baseline
+    float       m_lineDescent;      // height below the baseline
+    int         m_lineVisible;      // total number of viewable lines
+    int         m_lineFirst;        // the first line displayed
+    int         m_lineTotal;        // number lines used (in m_lineOffset)
     std::vector<std::size_t> m_lineOffset;
-    std::vector<short>       m_lineIndent;
+    std::vector<short>       m_lineIndent;      //line Indentation
+    std::vector<short>       m_lineSubIndentC;   //line sub-Indentation-current
+    std::vector<short>       m_lineSubIndentN;   //line sub-Indentation-next
+    std::vector<short>       m_lineAcc;   //line ref-of-opened-blocks
     std::vector<ImageLine>   m_image;
     std::vector<HyperLink>   m_link;
     std::vector<HyperMarker> m_marker;
-    int                      m_historyTotal;
-    int                      m_historyCurrent;
+    short                    m_historyTotal;
+    short                    m_historyCurrent;
     std::array<HyperHistory, EDITHISTORYMAX> m_history;
     float                    m_time;             // absolute time
     float                    m_timeBlink;
@@ -286,6 +309,29 @@ protected:
     bool        m_bUndoForce;
     OperUndo    m_undoOper;
     std::array<EditUndo, EDITUNDOMAX> m_undo;
+
+   //tmp for internal traces of code placement
+    void    trace(const char*sIntro,
+        const int indent,               //current line?? indentation
+        const int iParenthesis,         //inside parenthesis => add identation
+        const int iSubIndentCurrent,    // indentation for current sub instruction (after do, else,...)
+        const int iSubIndentNext,       // indent next instruction(after : if(..)
+        const std::vector<Ctxt>& stackIf,
+        const std::vector<Ctxt>& stackDo,
+        const bool bIf,
+        const bool bDo
+        )const;
+
+    void manageEndInstr(
+        const char ref//todo-rm
+        , const std::size_t i
+        , std::vector<Ctxt>& stackDo
+        , std::vector<Ctxt>& stackIf
+        , int& indent
+        , int& iSubIndentCurrent
+        , int& iSubIndentNext
+        )const;
+
 
     friend class CEditValue;    //calls SetFocus()
 };

@@ -58,7 +58,7 @@ const float DELAY_SCROLL    = 0.1f;
 //! expansion for \b;
 const float BIG_FONT        = 1.6f;
 
-
+const bool TRACE_REINDENT   = false;
 
 //! Indicates whether a character is a space.
 
@@ -75,6 +75,7 @@ bool IsBreaker(const char c)
     return ( c == '.'  || c == '{' || c == '}' ||
              c == ';' || c == ':' || c == '[' || c == ']' ||
              c == '(' || c == ')' || c == '=' || c == '"' || c == '\'' );
+    //nota: '/' can be a "breaker" or "delimiter" if followed by '*' or by '/'
 }
 
 bool IsDelimiter(const char c)
@@ -101,17 +102,19 @@ bool IsWord(const char c)
 
 bool IsSep(const char character)
 {
-    if ( IsSpace(character) )  return false;
+    if (IsSpace(character))
+        return false;
     return !IsWord(character);
 }
 
 //! Object's constructor.
 CEdit::CEdit()
-    : CControl(),
-      m_maxChar(SIZE_MAX), //std::numeric_limits<std::size_t>::max() ),
-      m_text(),
-      m_lineOffset(),
-      m_lineIndent()
+    : CControl()
+    , m_maxChar(SIZE_MAX) //std::numeric_limits<std::size_t>::max() ),
+    , m_text()
+    , m_lineOffset()
+    , m_lineSubIndentC()
+    , m_lineSubIndentN()
 {
     m_len = 0;
 
@@ -289,13 +292,9 @@ bool CEdit::EventProcess(const Event &event)
             else
             {
                 if ( IsLinkPos(event.mousePos) )
-                {
                     m_engine->SetMouseType(Gfx::ENG_MOUSE_HAND);
-                }
                 else
-                {
                     m_engine->SetMouseType(Gfx::ENG_MOUSE_NORM);
-                }
             }
         }
     }
@@ -888,7 +887,8 @@ void CEdit::HyperJump(const std::string& name, const std::string& marker)
 
 bool CEdit::HyperAdd(const std::string& filename, const int firstLine)
 {
-    if ( m_historyCurrent >= EDITHISTORYMAX-1 )  return false;
+    if ( m_historyCurrent >= EDITHISTORYMAX-1 )
+        return false;
 
     m_historyCurrent ++;
     m_history[m_historyCurrent].filename = filename;
@@ -1311,7 +1311,8 @@ void CEdit::DrawBack(Math::Point pos, Math::Point dim)
     }
 }
 
-void CEdit::DrawHorizontalGradient(Math::Point pos, Math::Point dim, Gfx::Color color1, Gfx::Color color2)
+void CEdit::DrawHorizontalGradient(Math::Point pos,
+    Math::Point dim, Gfx::Color color1, Gfx::Color color2)
 {
     m_engine->SetState(Gfx::ENG_RSTATE_OPAQUE_COLOR);
 
@@ -1474,8 +1475,6 @@ std::size_t CEdit::GetTextLength()const
 {
     return m_len;
 }
-
-
 
 // Returns a name in a command.
 // \x nom1 nom2 nom3;
@@ -1943,7 +1942,8 @@ bool CEdit::ReadText(const std::string& filename)
 
 bool CEdit::WriteText(const std::string& filename)
 {
-    if (filename.empty())  return false;
+    if (filename.empty())
+        return false;
 
     COutputStream stream;
     stream.open(filename);
@@ -1977,19 +1977,12 @@ void CEdit::GetIndentedText(std::ostream& stream, const std::size_t start, const
         if ( m_bAutoIndent && i == m_lineOffset[line] )
         {
             for (short n = 0; n < m_lineIndent[line]; n++)
-            {
                 if (i > start)
-                {
                     stream << '\t';
-                }
-            }
             line++;
         }
-
         if (i >= start)
-        {
             stream << m_text[i];
-        }
     }
 
     if ( m_bAutoIndent )
@@ -2138,13 +2131,9 @@ int CEdit::GetFirstLine()const
     if ( m_historyTotal > 0 )
     {
         if ( m_historyCurrent == 0 )
-        {
             return m_lineFirst;
-        }
         else
-        {
             return m_history[0].firstLine;
-        }
     }
     return m_lineFirst;
 }
@@ -2342,7 +2331,6 @@ void CEdit::MoveEnd(const bool bEoF, const bool bSelect)
 void CEdit::MoveChar(int move, const bool bWord, const bool bSelect)
 {
     char     character;
-
     if (0>move)  // back?
     {
         while(0>move++)
@@ -2404,6 +2392,12 @@ void CEdit::MoveChar(int move, const bool bWord, const bool bSelect)
                 do
                     --m_cursor1;
                 while (0<m_cursor1 && 0x80==(m_text[m_cursor1] & 0xC0)); //UTF8 mgt
+                //GetLogger()->Trace("m←%d:%d\n",m_cursor2,m_cursor1);
+                if ( m_cursor1 > m_len )    //secu
+                {
+                    m_cursor1=0;
+                    break;
+                }
             }
     }
     else if ( 0<move )  // advance?
@@ -2492,6 +2486,7 @@ void CEdit::MoveChar(int move, const bool bWord, const bool bSelect)
                     m_cursor1+=4;
                 else
                     ++m_cursor1;
+                //GetLogger()->Trace("m→%d:%d\n",m_cursor2,m_cursor1);
                 if ( m_cursor1 > m_len )
                 {
                     m_cursor1 = m_len;
@@ -2500,7 +2495,8 @@ void CEdit::MoveChar(int move, const bool bWord, const bool bSelect)
             }
     }
 
-    if ( !bSelect )  m_cursor2 = m_cursor1;
+    if ( !bSelect )
+        m_cursor2 = m_cursor1;
 
     m_bUndoForce = true;
     Justif();
@@ -2535,10 +2531,18 @@ void CEdit::MoveLine(const int move, const bool bSelect)
             m_lineOffset[line],
             m_lineOffset[line+1],
             m_engine->GetEditIndentValue());
+    //GetLogger()->Trace("\t\t:%d~%d.....%d\n",m_lineOffset[line],m_lineOffset[line+1],m_cursor1);
+    //GetLogger()->Trace("L%d\tgoal:%d/%d\n",line,pos,nbCharNewLine);
     if (m_cursor1 >= pos)
+    {
         m_cursor1 = m_lineOffset[line];
+        //GetLogger()->Trace("\tA%d\n",m_cursor1);
+    }
     else if (nbCharNewLine <= pos)
+    {
         m_cursor1 = m_lineOffset[line+1] - 1;
+        //GetLogger()->Trace("\tB%d\n",m_cursor1);
+    }
     else
     {
         m_cursor1 = StrUtils::Utf8StringPosAfter(
@@ -2546,14 +2550,21 @@ void CEdit::MoveLine(const int move, const bool bSelect)
                 m_lineOffset[line],
                 pos - m_cursor1,
                 m_engine->GetEditIndentValue());
+        //GetLogger()->Trace("\tC%d\n",m_cursor1);
         if(m_len<=m_cursor1)
+        {
             m_cursor1=m_len;
+            //GetLogger()->Trace("\tD%d\n",m_cursor1);
+        }
         else if(m_cursor1>=m_lineOffset[line+1])
+        {
             m_cursor1=m_lineOffset[line+1];
+            //GetLogger()->Trace("\tD%d\n",m_cursor1);
+        }
     }
     if (!bSelect)
         m_cursor2 = m_cursor1;
-   m_bUndoForce = true;
+    m_bUndoForce = true;
     //in case of need, slide the text to stay into displayed window
     Justif();
     //nota:Scroll call may suffisant
@@ -2569,20 +2580,16 @@ void CEdit::ColumnFix()
     line = GetCursorLine(m_cursor1);
 
     if ( m_format.empty() )
-    {
         m_column = m_engine->GetText()->GetStringWidth(
                                 std::string(m_text.data()+m_lineOffset[line]),
                                 m_fontType, m_fontSize);
-    }
     else
-    {
         m_column = m_engine->GetText()->GetStringWidth(
                                 std::string(m_text.data()+m_lineOffset[line]),
                                 m_format.begin() + m_lineOffset[line],
                                 m_format.end(),
                                 m_fontSize
                             );
-    }
 
     if ( m_bAutoIndent )
     {
@@ -2619,34 +2626,26 @@ bool CEdit::Copy(const bool memorize_cursor)
     c1 = m_cursor1;
     c2 = m_cursor2;
     if ( c1 > c2 )
-    {
         Math::Swap(c1, c2);  // always c1 <= c2
-    }
 
     if ( c1 == c2 )
     {
         while ( c1 > 0 )
         {
             if ( m_text[c1 - 1] == '\n' )
-            {
                 break;
-            }
             c1--;
         }
         while ( c2 < m_len )
         {
             c2++;
             if ( m_text[c2 - 1] == '\n' )
-            {
                 break;
-            }
         }
     }
 
     if ( c1 == c2 )
-    {
         return false;
-    }
 
     std::stringstream ss;
     GetIndentedText(ss, c1, c2);
@@ -2752,10 +2751,7 @@ bool CEdit::Paste()
 bool CEdit::Undo()
 {
     if ( !m_bEdit )
-    {
         return false;
-    }
-
     return UndoRecall();
 }
 
@@ -2779,7 +2775,8 @@ void CEdit::Insert(const char character)
     if ( !m_bMulti )  // single-line?
     {
         if ( character == '\n' ||
-             character == '\t' )  return;
+             character == '\t' )
+            return;
     }
 
     UndoMemorize(OPERUNDO_INSERT);
@@ -2841,21 +2838,7 @@ void CEdit::Insert(const char character)
                 && ( m_cursor1>m_len
                   || m_text[m_cursor1 ] != '\n' || m_text[m_cursor1+1] != '{'))
             {
-                InsertOne(character);
-//TODO USE insertText!!!
-                InsertOne('{');
-                InsertOne('\n');
-                InsertOne(';');
-                InsertOne('\n');
-                InsertOne('}');
-                InsertOne('\n');
-                InsertOne('w');
-                InsertOne('h');
-                InsertOne('i');
-                InsertOne('l');
-                InsertOne('e');
-                InsertOne('(');
-                InsertOne(')');
+                InsertTxt("\n{\n;\n}\nwhile()");
                 if(m_text[m_cursor1 ] != ';')
                 {
                     InsertOne(';');
@@ -2892,13 +2875,13 @@ void CEdit::InsertOne(const char character)
 {
     std::size_t     i;
 
-    if ( !m_bEdit )  return;
-    if ( !m_bMulti && character == '\n' )  return;
+    if ( !m_bEdit )
+        return;
+    if ( !m_bMulti && character == '\n' )
+        return;
 
     if ( m_cursor1 != m_cursor2 )
-    {
         DeleteOne(0);  // deletes the selected characters
-    }
 
     if ( m_len >= GetMaxChar() )
     {
@@ -2920,7 +2903,6 @@ void CEdit::InsertOne(const char character)
     }
 
     m_len ++;
-
     m_text[m_cursor1] = character;
 
     if ( m_cursor1 < m_format.size() )
@@ -2949,17 +2931,20 @@ void CEdit::DeleteOne(const int dir)
 {
     int     i, end, hole;
 
-    if ( !m_bEdit )  return;
+    if ( !m_bEdit )
+        return;
 
     if ( m_cursor1 == m_cursor2 )
     {
         if ( dir < 0 )
         {
-            if ( m_cursor1 == 0 )  return;
+            if ( m_cursor1 == 0 )
+                return;
         }
         else
         {
-            if ( m_cursor2 == m_len )  return;
+            if ( m_cursor2 == m_len )
+                return;
         }
         MoveChar(dir, false, true);
         assert(m_cursor1!=m_cursor2);
@@ -3036,7 +3021,6 @@ void CEdit::DeleteOne(const int dir)
             m_text[m_cursor2]=';';
         }
     }
-
     end = m_len-hole;
     for ( i=m_cursor1 ; i<end ; i++ )
     {
@@ -3084,9 +3068,11 @@ void CEdit::DeleteWord(const int dir)
             Delete(1);
             return;
         }
-        else ++m_cursor1;
+        else
+            ++m_cursor1;
 
-        while ( m_cursor1 < m_len && !IsDelimiter(m_text[m_cursor1]) ) ++m_cursor1;
+        while ( m_cursor1 < m_len && !IsDelimiter(m_text[m_cursor1]) )
+            ++m_cursor1;
 
         while ( m_cursor2 > 0 && IsSpace(m_text[m_cursor2]) )
             do
@@ -3220,11 +3206,13 @@ bool CEdit::Shift(const bool bLeft)
 
     if ( c1 > 0 )
     {
-        if ( m_text[c1-1] != '\n' )  return false;
+        if ( m_text[c1-1] != '\n' )
+            return false;
     }
     if ( c2 < m_len )
     {
-        if ( m_text[c2-1] != '\n' )  return false;
+        if ( m_text[c2-1] != '\n' )
+            return false;
     }
 
     if ( bLeft )  // shifts left?
@@ -3300,6 +3288,300 @@ bool CEdit::MinMaj(const bool bMaj)
     return true;
 }
 
+//tmp-for-traces-of-code-placement
+void CEdit::trace(const char*sIntro,
+    const int indent,               //current line?? indentation
+    const int iParenthesis,         //inside parenthesis => add identation
+    const int iSubIndentCurrent,    // indentation for current sub instruction (after do, else,...)
+    const int iSubIndentNext,       // indent next instruction(after : if(..)
+    const std::vector<Ctxt>& stackIf,
+    const std::vector<Ctxt>& stackDo,
+    const bool bIf,
+    const bool bDo
+    )const
+{
+    if(!TRACE_REINDENT
+        //&& 0!=strcmp(sIntro,"******")
+        )
+        return;
+//cur:    m_lineTotal-1
+//  m_lineOffset[m_lineTotal-1]   filled
+//  m_lineOffset[m_lineTotal]     filled NOW
+//  m_lineIndent[m_lineTotal-1]   filled
+//m_lineIndent[iLine]
+//m_lineOffset[iLine]
+    int iCurLine=m_lineOffset.size()-2;
+    if(0>iCurLine)
+    {
+        GetLogger()->Trace("TRACE-PB");
+        return;
+    }
+    //assert(0<=iCurLine);
+    std::string sLine;
+    for(std::size_t i=m_lineOffset[iCurLine];i<m_lineOffset[iCurLine+1];++i)
+        if('\n'==m_text[i])
+            sLine+="↓";
+        else
+            sLine+=m_text[i];
+
+    if(m_lineIndent.size()<iCurLine)
+        GetLogger()->Trace("%s L%d I<%2d>\ti:%2d  s:%d~n:%d\t()%d\t→%s←\n",
+            sIntro,iCurLine,
+            indent + iSubIndentCurrent +iParenthesis,
+            indent , iSubIndentCurrent ,iSubIndentNext ,iParenthesis,
+            sLine.c_str());
+    else
+    {
+        if(m_len<=m_lineOffset[iCurLine+1]
+            || ('{'!=m_text[m_lineOffset[iCurLine+1]]
+                && '}'!=m_text[m_lineOffset[iCurLine+1]]
+                ))
+            GetLogger()->Trace("%s L%d I<%2d>[%d]\ti:%2d s:%d~n:%d\t()%d\t→%s←\n",
+                sIntro,iCurLine,
+                m_lineIndent[iCurLine],
+                indent + iSubIndentCurrent +iParenthesis,
+                indent , iSubIndentCurrent ,iSubIndentNext ,iParenthesis,
+                sLine.c_str());
+        else
+            GetLogger()->Trace("%s L%d I<%2d>[%d]-\ti:%2d s:%d~n:%d\t()%d\t→%s←\n",
+                sIntro,iCurLine,
+                m_lineIndent[iCurLine],
+                indent + iSubIndentCurrent +iParenthesis
+                    -1,
+                indent , iSubIndentCurrent ,iSubIndentNext ,iParenthesis,
+                sLine.c_str());
+    }
+    if(bIf)
+    {
+        if(stackIf.size())
+            GetLogger()->Trace("----(%d)-if--:L%d{%d}\n",
+                stackIf.size(),
+                stackIf.back().line,
+                stackIf.back().nbInstAfter
+                );
+        else
+            GetLogger()->Trace("----(?)-if--\n");
+    }
+    if(bDo)
+    {
+        if(stackDo.size())
+            GetLogger()->Trace("----(%d)-do--:L%d{%d}\n",
+                stackDo.size(),
+                stackDo.back().line,
+                stackDo.back().nbInstAfter
+                );
+        else
+            GetLogger()->Trace("----(?)-do--\n");
+    }
+}
+
+#define TRACE_PLACE(sIntro) \
+    trace(sIntro,\
+    indent,\
+    0,\
+    iSubIndentCurrent,\
+    iSubIndentNext,\
+    stackIf,\
+    stackDo,\
+    false,\
+    false\
+    )
+#define TRACE_PLACE_IF(sIntro) \
+    trace(sIntro,\
+    indent,\
+    0,\
+    iSubIndentCurrent,\
+    iSubIndentNext,\
+    stackIf,\
+    stackDo,\
+    true,\
+    false\
+    )
+#define TRACE_PLACE_DO(sIntro) \
+    trace(sIntro,\
+    indent,\
+    0,\
+    iSubIndentCurrent,\
+    iSubIndentNext,\
+    stackIf,\
+    stackDo,\
+    false,\
+    true\
+    )
+
+/**
+ * check if next instruction is an "else"
+ *     ignoring eventual comments
+ * @param  pos current position
+ * @return     @see goal
+ */
+bool CEdit::isNextInstElse(const std::size_t pos)const
+{
+    bool bRem=false,             // into a single line comment
+         bRemMultiLine=false;    // into a multi line comment
+    for(size_t i=pos;i<m_len;++i)
+    {
+        if(!bRem && !bRemMultiLine)
+            switch(m_text[i])
+            {
+            case '/':
+                if(i+1<m_len)
+                {
+                    if ( m_text[i+1] == '/' )
+                        bRem = true;
+                    else if ( m_text[i+1] == '*' )
+                        bRemMultiLine = true;
+                }
+                break;
+            case 'e':
+                if(i+1>=m_len||'l'!=m_text[i+1])
+                    return false;
+                if(i+2>=m_len||'s'!=m_text[i+2])
+                    return false;
+                if(i+2>=m_len||'e'!=m_text[i+3])
+                    return false;
+                if(!IsDelimiter(m_text[i+4])&&'/'!=m_text[i+4])
+                    return false;
+                return true;
+            default:
+                if(!IsDelimiter(m_text[i]))
+                    return false;
+            }
+        else    // bRem || bRemMultiLine
+        {
+            if (bRemMultiLine
+                && i+1<m_len
+                && m_text[i]== '*' && m_text[i+1] == '/' )
+                bRemMultiLine = false;
+            if ( m_text[i] == '\n' )
+                bRem = false;
+        }
+    }
+    return false;
+}
+
+/**
+ * Manage indentation after ';'
+ *     take in account eventual else just after (ignoring comments)
+ *     +    incr-cptr-if...
+ *     +    incr-cptr-do...
+ * @param ref               references for trace call'origin
+ * @param i                 current position
+ * @param stackDo           stack of current do-while
+ * @param stackIf           stack of current if-else
+ * @param indent            current indentation
+ * @param iSubIndentCurrent current subindentation
+ * @param iSubIndentNext    indentation to add on next instruction
+ * @param iParenthesis      current parenthesis imbrication
+ */
+void CEdit::manageEndInstr(
+    const char ref//todo-rm
+    , const std::size_t i
+    , std::vector<Ctxt>& stackDo
+    , std::vector<Ctxt>& stackIf
+    , int& indent
+    , int& iSubIndentCurrent
+    , int& iSubIndentNext
+    //, int& iParenthesis
+    )const
+{
+    if(1>stackIf.size()
+        || indent > m_lineIndent[stackIf.back().line])
+        return;
+    if(TRACE_REINDENT)
+        GetLogger()->Trace("IfCptr++ %c--ref:L%d\n",ref,stackIf.back().line);
+    ++stackIf[stackIf.size()-1].nbInstAfter;
+    bool first=true;
+    bool ifOrDo;
+    do
+    {
+        ifOrDo=false;
+        while(
+            stackIf.size()
+            && (!m_lineAcc.size()
+            ||m_lineAcc.back()<stackIf.back().line
+            )
+            && (!stackDo.size()
+            ||  (
+                stackDo.back().line < stackIf.back().line
+                && 0<stackDo[stackDo.size()-1].nbInstAfter
+            ) )
+            && indent-1<=m_lineIndent[stackIf.back().line])
+        {
+            ifOrDo=true;
+            if(TRACE_REINDENT)
+            {
+                GetLogger()->Trace("+\tnbIf:%d\t! %d <= %d\t",
+                    stackIf.size()
+                    ,indent
+                    ,m_lineIndent[stackIf.back().line]);
+                GetLogger()->Trace("If-Pop %c? stackIfCptr:%d\n",ref, stackIf[stackIf.size()-1].nbInstAfter);
+            }
+            if(1<stackIf[stackIf.size()-1].nbInstAfter
+                ||
+                (
+                    1==stackIf[stackIf.size()-1].nbInstAfter
+               &&   !isNextInstElse(i)
+                ))
+            {
+                if(!first)
+                    ++stackIf[stackIf.size()-1].nbInstAfter;
+                first=false;
+                //recup-prev-ctxt!
+                int lineRef=stackIf.back().line;
+                if(TRACE_REINDENT)
+                    GetLogger()->Trace("If-Pop %c!!:Ref:L%d-->%d!!\n",ref,
+                        lineRef,m_lineIndent[lineRef]);
+                indent=m_lineIndent[lineRef];
+                iSubIndentCurrent=m_lineSubIndentC[lineRef];
+                //m_lineIndent[m_lineTotal-1]=indent;
+                iSubIndentNext=m_lineSubIndentN[lineRef];
+                indent-=iSubIndentCurrent;
+                TRACE_PLACE_IF(" →POPif");
+                stackIf.pop_back();
+            }
+            else
+            {
+                if(iSubIndentCurrent)
+                    --iSubIndentCurrent;
+                else if(iSubIndentNext)
+                    --iSubIndentNext;
+                break;
+            }
+        }
+        while(
+            stackDo.size()
+            && 0==stackDo[stackDo.size()-1].nbInstAfter
+            && (!m_lineAcc.size()
+                ||m_lineAcc.back()<stackIf.back().line
+            )
+            && (!stackIf.size()
+            ||  stackIf.back().line<stackDo.back().line
+            )
+          //?  && indent-1<=m_lineIndent[stackDo.back().line]
+            )
+        {
+            ifOrDo=true;
+            if(TRACE_REINDENT)
+            {
+                GetLogger()->Trace("+\tnbDo:%d\t! %d <= %d\t",
+                    stackDo.size()
+                    ,indent
+                    ,m_lineIndent[stackIf.back().line]);
+                GetLogger()->Trace("Do-+inst %c stackDoCptr:%d\n",
+                    ref, stackDo[stackDo.size()-1].nbInstAfter);
+            }
+            ++stackDo[stackDo.size()-1].nbInstAfter;
+        }
+    }
+    while(ifOrDo);
+    if(TRACE_REINDENT)
+        GetLogger()->Trace("-\tnbIf:%d\n\t! %d <= %d\n",
+            stackIf.size()
+            ,indent-1
+            ,m_lineIndent[stackIf.back().line]);
+}
+
 
 // Cut all text lines.
 //  postCond : upd : m_lineOffset & m_lineIndent, m_lineTotal, m_lineFirst
@@ -3319,30 +3601,36 @@ void CEdit::Justif()
         bRem=false,             // into a single line comment
         bRemMultiLine=false;    // into a multi line comment
 
-std::vector<int> stackDo;  //helper for next "while"
-std::vector<int> stackIf;  //helper for opt "else" placement
+    std::vector<Ctxt> stackDo;  //helper for next "while"
+    std::vector<Ctxt> stackIf;  //helper for opt "else" placement
 
     m_lineOffset.clear();
     m_lineIndent.clear();
-
+    m_lineSubIndentC.clear();
+    m_lineSubIndentN.clear();
+    if(TRACE_REINDENT&m_bMulti&&m_bAutoIndent)
+        GetLogger()->Trace("     I~clear-+0\n");
     m_lineTotal = 0;
     m_lineOffset.push_back( 0 );
     m_lineIndent.push_back( indent );
+    m_lineSubIndentC.push_back( iSubIndentCurrent );
+    m_lineSubIndentN.push_back( iSubIndentNext );
     m_lineTotal ++;
 
     if ( m_bAutoIndent )
-    {
-        indentLength = m_engine->GetText()->GetCharWidth(static_cast<Gfx::UTF8Char>(' '), m_fontType, m_fontSize, 0.0f)
-                        * m_engine->GetEditIndentValue();
-    }
+        indentLength = m_engine->GetText()
+            ->GetCharWidth(static_cast<Gfx::UTF8Char>(' '),
+                m_fontType, m_fontSize, 0.0f)
+            * m_engine->GetEditIndentValue();
 
     bString = bRem = false;
     i = k = 0;
-    while ( true )
+    while ( i < m_len )
     {
         bDual = false;
 
-        width = m_dim.x-(7.5f/640.0f)*(m_fontSize/Gfx::FONT_SIZE_SMALL)*2.0f-(m_bMulti?MARGX*2.0f+SCROLL_WIDTH:0.0f);
+        width = m_dim.x-(7.5f/640.0f)*(m_fontSize/Gfx::FONT_SIZE_SMALL)*2.0f
+            -(m_bMulti?MARGX*2.0f+SCROLL_WIDTH:0.0f);
         if ( m_bAutoIndent )
         {
             width -= indentLength*m_lineIndent[m_lineTotal-1];
@@ -3354,7 +3642,6 @@ std::vector<int> stackIf;  //helper for opt "else" placement
         if ( m_format.empty() )
         {
             // TODO check if good
-
             i += m_engine->GetText()->Justify(m_text.data()+i, m_fontType,
                                               m_fontSize, width);
         }
@@ -3368,24 +3655,24 @@ std::vector<int> stackIf;  //helper for opt "else" placement
                 bDual = true;
             }
 
-            if ( m_format.size()>i && (m_format[i]&Gfx::FONT_MASK_IMAGE) != 0 )  // image part?
-            {
+            if ( m_format.size()>i && (m_format[i]&Gfx::FONT_MASK_IMAGE) != 0 )
+                // image part?
                 i ++;  // jumps just a character (index in m_image)
-            }
             else
-            {
                 // TODO check if good
                 i += m_engine->GetText()->Justify(std::string(m_text.data()+i),
                                                   m_format.begin() + i,
                                                   m_format.end(),
                                                   size,
                                                   width);
-            }
         }
-
         if ( i >= m_len )
-            break; //note : don't analyse last line !! (that should be '}')
-
+        {
+            m_lineOffset.push_back( m_len );
+            //!!  break; //note : didn't analyse last line !! (that should be '}')
+        }
+        else
+            m_lineOffset.push_back( i );    //moved-from-lower (doubled in need lower)
         if ( m_bAutoIndent )
         {
             /// {m_lineOffset[m_lineTotal-1] == k}
@@ -3408,6 +3695,8 @@ std::vector<int> stackIf;  //helper for opt "else" placement
                         break;
                     case '{':
                         ++indent;
+                        m_lineAcc.push_back(m_lineTotal-1);
+                        TRACE_PLACE("     {");
                         if(0<iParenthesis)
                         {
                             //something is wrong, try rescue subs
@@ -3417,15 +3706,83 @@ std::vector<int> stackIf;  //helper for opt "else" placement
                             else
                                 if(0<iSubIndentNext)
                                     --iSubIndentNext;
+                            if(0<m_lineIndent[m_lineTotal-1])
+                                --m_lineIndent[m_lineTotal-1];
                         }
                         else if(iSubIndentCurrent>0)
+                        {
                             --iSubIndentCurrent;
+                            if(0<m_lineIndent[m_lineTotal-1])
+                                --m_lineIndent[m_lineTotal-1];
+                            if(m_lineSubIndentC.size())
+                                --m_lineSubIndentC[m_lineSubIndentC.size()-1];
+                        }
                         else if(iSubIndentNext>0)
+                        {
                             --iSubIndentNext;
-                        --m_lineIndent[m_lineTotal-1];
+                            if(0<m_lineIndent[m_lineTotal-1])
+                                --m_lineIndent[m_lineTotal-1];
+                            if(m_lineSubIndentN.size())
+                                --m_lineSubIndentN[m_lineSubIndentN.size()-1];
+                        }
+
+                        if(0<iSubIndentNext)
+                        {
+                            indent+=iSubIndentNext;
+                            iSubIndentNext=0;
+                        }
+                        if(0<iSubIndentCurrent)
+                        {
+                            indent+=iSubIndentCurrent;
+                            iSubIndentCurrent=0;
+                        }
+                        //    TRACE_PLACE("    _{");
                         break;
                     case '}':
-                        --indent;
+                        if(indent)
+                            --indent;
+                        if(j==m_lineOffset[m_lineTotal-1]
+                            && m_lineIndent[m_lineTotal-1])
+                            --m_lineIndent[m_lineTotal-1];
+                        TRACE_PLACE("     }");
+                        manageEndInstr('}',
+                            i,
+                            stackDo,
+                            stackIf,
+                            indent,
+                            iSubIndentCurrent,
+                            iSubIndentNext);
+                        TRACE_PLACE("    _}");
+                        if(m_lineAcc.size())
+                        {
+                            if(indent!=m_lineIndent[m_lineAcc.back()])
+                            {
+                                if(TRACE_REINDENT)
+                                    GetLogger()->Trace("Block-Rescue:calculate:%d!=%d\n"
+                                        ,indent
+                                        ,m_lineIndent[m_lineAcc.back()]);
+                                indent=m_lineIndent[m_lineAcc.back()];
+                                m_lineIndent[m_lineIndent.size()-1]=indent;
+                                //clean-eventual-false-do&false-if
+                                while(stackIf.size()&&stackIf.back().line>=m_lineAcc.back())
+                                {
+                                    if(TRACE_REINDENT)
+                                        GetLogger()->Trace("If-Rescue}-POP:L%d\n",stackIf.back().line);
+                                    stackIf.pop_back();
+                                }
+                                while(stackDo.size()&&stackDo.back().line>=m_lineAcc.back()
+                                    && 0<stackDo[stackDo.size()-1].nbInstAfter
+                                    )
+                                {
+                                    if(TRACE_REINDENT)
+                                        GetLogger()->Trace("do-Rescue}-POP:L%d\n",stackDo.back().line);
+                                    stackDo.pop_back();
+                                }
+                            }
+                            iSubIndentCurrent=m_lineSubIndentC[m_lineAcc.size()-1];
+                            iSubIndentNext=m_lineSubIndentC[m_lineAcc.size()-1];
+                            m_lineAcc.pop_back();
+                        }
                         break;
                     case '(':
                         ++iParenthesis; // shift for non endeed parenthesis in same line - 180219 - BCE
@@ -3441,58 +3798,120 @@ std::vector<int> stackIf;  //helper for opt "else" placement
                         break;
                     case 'f':   //case if?
                         if(j>2 && j+1<m_len
-                            && IsDelimiter(m_text[j-2])
+                            && (IsDelimiter(m_text[j-2])
+                                ||(j>3 && '/'==m_text[j-2] &&'*'==m_text[j-3]))
                             && 'i'==m_text[j-1]
                             // 'f'==m_text[j]
-                            && IsDelimiter(m_text[j+1]))
+                            && (IsDelimiter(m_text[j+1])
+                                ||'/'==m_text[j+1]))
                         {
                             ++iSubIndentNext;
-                            stackIf.push_back( m_lineTotal-1 );
+                            stackIf.push_back({m_lineTotal-1});
+                            TRACE_PLACE_IF("    if");
                         }
                         break;
                     case 'o':   //case do..while?
                         if(j>2 && j+1<m_len
-                            && IsDelimiter(m_text[j-2])
+                            && (IsDelimiter(m_text[j-2])
+                                ||(j>3 && '/'==m_text[j-2] &&'*'==m_text[j-3]))
                             && 'd'==m_text[j-1]
                             // 'o'==m_text[j]
-                            && IsDelimiter(m_text[j+1]))
+                            && (IsDelimiter(m_text[j+1])
+                                ||'/'==m_text[j+1]))
                         {
                             ++iSubIndentCurrent;
-                            stackDo.push_back( m_lineTotal-1 );
+                            stackDo.push_back({m_lineTotal-1});
+                            TRACE_PLACE("    do");
                         }
                         break;
                     case 'r':   //case for?
                         if(j>3 && j+1<m_len
-                            && IsDelimiter(m_text[j-3])
+                            && (IsDelimiter(m_text[j-3])
+                                ||(j>3 && '/'==m_text[j-2] &&'*'==m_text[j-3]))
                             && 'f'==m_text[j-2]
                             && 'o'==m_text[j-1]
                             // 'r'==m_text[j]
-                            && IsDelimiter(m_text[j+1]))
+                            && (IsDelimiter(m_text[j+1])
+                                ||'/'==m_text[j+1]))
                             ++iSubIndentNext;
                         break;
                     case 'e':   //case while or else?
-                        if(j>5 && j+1<m_len
-                            && IsDelimiter(m_text[j-5])
+                        if(j>5 && j+1<m_len   //case while
+                            && (IsDelimiter(m_text[j-5])
+                                ||(j>6 && '/'==m_text[j-5] &&'*'==m_text[j-6]))
                             && 'w'==m_text[j-4]
                             && 'h'==m_text[j-3]
                             && 'i'==m_text[j-2]
                             && 'l'==m_text[j-1]
                             // 'e'==m_text[j]
-                            && IsDelimiter(m_text[j+1]))
+                            && (IsDelimiter(m_text[j+1])
+                                ||'/'==m_text[j+1]))
                         {
-                            //stackDo ?
-                            ++iSubIndentNext;
+                            if(stackDo.size()
+                                && (!m_lineAcc.size()
+                                    ||m_lineAcc.back()<stackDo.back().line)
+                                && (!stackIf.size()
+                                    ||stackIf.back().line<stackDo.back().line)
+                                && indent-1<=m_lineIndent[stackDo.back().line]
+                                && 0<stackDo[stackDo.size()-1].nbInstAfter
+                                )
+                            {
+                                TRACE_PLACE(" while");
+                                if(TRACE_REINDENT)
+                                    GetLogger()->Trace("DO-While--POP\n");
+                                int lineRef=stackDo.back().line;
+                                indent=m_lineIndent[lineRef];
+                                iSubIndentCurrent=m_lineSubIndentC[lineRef];
+                                indent-=iSubIndentCurrent;
+                                m_lineIndent[m_lineTotal-1]=m_lineIndent[lineRef];
+                                iSubIndentNext=m_lineSubIndentN[lineRef];
+                                if(iSubIndentNext)
+                                    --iSubIndentNext;
+                                stackDo.pop_back();
+                                TRACE_PLACE_IF(" _else");
+                            }
+                            else
+                            {
+                                if(TRACE_REINDENT)
+                                    GetLogger()->Trace("While-simple\n");
+                                ++iSubIndentNext;
+                            }
                         }
-                        else if(j>4 && j+1<m_len
-                            && IsDelimiter(m_text[j-4])
+                        else if(j>4 && j+1<m_len   //case else
+                            && (IsDelimiter(m_text[j-4])
+                                ||(j>5 && '/'==m_text[j-4] &&'*'==m_text[j-5]))
                             && 'e'==m_text[j-3]
                             && 'l'==m_text[j-2]
                             && 's'==m_text[j-1]
                             // 'e'==m_text[j]
-                            && IsDelimiter(m_text[j+1]))
+                            && (IsDelimiter(m_text[j+1])
+                                || '/'==m_text[j+1]))
                         {
-                            //stackIf
-                            ++iSubIndentCurrent;
+                            if(0!=iParenthesis)
+                                GetLogger()->Warn("     else-Inside-a-parenthesis??\n");
+                            else if(stackIf.size())
+                            {
+                                TRACE_PLACE_IF("  else");
+                                int lineRef=stackIf.back().line;
+                                stackIf.back().nbInstAfter+=10;
+                                if(TRACE_REINDENT)
+                                    GetLogger()->Trace("Ref:L%d-->%d!!}\n",
+                                        lineRef,m_lineIndent[lineRef]);
+                                indent=m_lineIndent[lineRef];
+                                m_lineIndent[m_lineTotal-1]=m_lineIndent[lineRef];
+                                iSubIndentCurrent=m_lineSubIndentC[lineRef];
+                                indent-=iSubIndentCurrent;
+                                iSubIndentNext=m_lineSubIndentN[lineRef];
+                                TRACE_PLACE_IF(" →else");
+                                ++iSubIndentCurrent;
+                                TRACE_PLACE_IF(" _else");
+                                ///{0==iParenthesis}
+                            }
+                            else
+                            {
+                                TRACE_PLACE_IF(" ?else");
+                                ++iSubIndentCurrent;
+                            }
                         }
                         break;
                     case ';':
@@ -3506,11 +3925,38 @@ std::vector<int> stackIf;  //helper for opt "else" placement
                             //        --iSubIndentNext;
                         }
                         else if(iSubIndentCurrent>0)
+                        {
                             --iSubIndentCurrent;
+                            manageEndInstr('A',
+                                i,
+                                stackDo,
+                                stackIf,
+                                indent,
+                                iSubIndentCurrent,
+                                iSubIndentNext);
+                        }
                         else if(iSubIndentNext>0)
+                        {
                             --iSubIndentNext;
+                            manageEndInstr('B',
+                                i,
+                                stackDo,
+                                stackIf,
+                                indent,
+                                iSubIndentCurrent,
+                                iSubIndentNext);
+                        }
                         else
-                            ;//something is wrong ? OR NORMAL case !
+                        {
+                            //OR NORMAL case !
+                            manageEndInstr('N',
+                                i,
+                                stackDo,
+                                stackIf,
+                                indent,
+                                iSubIndentCurrent,
+                                iSubIndentNext);
+                        }
                     break;
                     }
                 else    // bString || bRem || bRemMultiLine
@@ -3529,41 +3975,27 @@ std::vector<int> stackIf;  //helper for opt "else" placement
             }   //for - end of line analysis
             if ( indent < 0 )   //secu
                 indent = 0;
-        }
-        m_lineOffset.push_back( i );
+        }   //if ( m_bAutoIndent )
+        TRACE_PLACE("******");
+        //moved-upper prev if:      m_lineOffset.push_back( i );
         m_lineIndent.push_back( indent + iSubIndentCurrent +iParenthesis );
+        m_lineSubIndentC.push_back( iSubIndentCurrent );
+        m_lineSubIndentN.push_back( iSubIndentNext );
         m_lineTotal ++;
         if ( bDual )
         {
             m_lineOffset.push_back( i );
             m_lineIndent.push_back( indent + iSubIndentCurrent + iParenthesis );
+            m_lineSubIndentC.push_back( iSubIndentCurrent );
+            m_lineSubIndentN.push_back( iSubIndentNext );
+            GetLogger()->Trace("dual\n");
             m_lineTotal ++;
         }
         if ( k == i )
             break;
         k = i;
     }
-
-    if ( m_len > 0 && m_text[m_len-1] == '\n' )
-    {
-        m_lineOffset.push_back( m_len );
-        m_lineIndent.push_back( 0 );
-        m_lineTotal ++;
-    }
-    m_lineOffset.push_back( m_len );
-    m_lineIndent.push_back( 0 );
-
-    if ( m_bAutoIndent )
-    {
-        for (int i=0 ; i<=m_lineTotal ; i++ )
-        {
-            if ( m_text[m_lineOffset[i]] == '}' )
-            {
-                if ( m_lineIndent[i] > 0 )
-                    m_lineIndent[i] --;
-            }
-        }
-    }
+    --m_lineTotal;  // PATCH due to remove of break !!
     //ensure cursor stay into displayed windows
     if ( m_bMulti )
     {
@@ -3577,12 +4009,9 @@ std::vector<int> stackIf;  //helper for opt "else" placement
         }
     }
     else
-    {
         m_lineFirst = 0;
-    }
     m_text[m_len]='\0';  //fix end...
     UpdateScroll();
-
     m_timeBlink = 0.0f;  // lights the cursor immediately
 }
 
@@ -3596,9 +4025,9 @@ int CEdit::GetCursorLine(const std::size_t cursor)const
     for ( i=0 ; i<m_lineTotal ; i++ )
     {
         if ( cursor >= m_lineOffset[i] )
-        {
             line = i;
-        }
+        else
+            break;
     }
     return line;
 }
@@ -3618,26 +4047,21 @@ void CEdit::UndoFlush()
 
 void CEdit::UndoMemorize(OperUndo oper)
 {
-    int         i;
+    short       i;
     std::size_t len;
-
     if ( !m_bUndoForce               &&
          oper       != OPERUNDO_SPEC &&
          m_undoOper != OPERUNDO_SPEC &&
-         oper == m_undoOper          )  return;
-
+         oper == m_undoOper          )
+        return;
     m_bUndoForce = false;
     m_undoOper = oper;
-
     m_undo[EDITUNDOMAX-1].text.clear();
-
     for ( i=EDITUNDOMAX-1 ; i>=1 ; i-- )
-    {
         m_undo[i] = m_undo[i-1];
-    }
-
     len = m_len;
-    if ( len == 0 )  len ++;
+    if ( len == 0 )
+        len ++;
     m_undo[0].text = m_text;
     m_undo[0].len = m_len;
 
@@ -3652,7 +4076,8 @@ bool CEdit::UndoRecall()
 {
     int     i;
 
-    if ( m_undo[0].text.empty() )  return false;
+    if ( m_undo[0].text.empty() )
+        return false;
 
     m_len = m_undo[0].len;
     m_text = m_undo[0].text;
@@ -3662,9 +4087,7 @@ bool CEdit::UndoRecall()
     m_lineFirst = m_undo[0].lineFirst;
 
     for ( i=0 ; i<EDITUNDOMAX-1 ; i++ )
-    {
         m_undo[i] = m_undo[i+1];
-    }
     m_undo[EDITUNDOMAX-1].text.clear();
 
     m_bUndoForce = true;
@@ -3680,9 +4103,7 @@ bool CEdit::UndoRecall()
 bool CEdit::ClearFormat()
 {
     if ( m_format.empty() )
-    {
         SetMultiFont(true);
-    }
     m_format.clear();
 
     return true;
@@ -3693,14 +4114,11 @@ bool CEdit::ClearFormat()
 bool CEdit::SetFormat(const std::size_t cursor1, const std::size_t cursor2, const int format)
 {
     std::size_t     i;
-
     if ( m_format.size() < cursor2 )
         SetMultiFont(true);
 
     for ( i=cursor1 ; i<cursor2 ; i++ )
-    {
         m_format.at(i) = (m_format.at(i) & ~Gfx::FONT_MASK_HIGHLIGHT) | format;
-    }
 
     return true;
 }
@@ -3796,4 +4214,3 @@ void CEdit::InsertTab(short nbTabToInsert)
 }
 
 }
-
