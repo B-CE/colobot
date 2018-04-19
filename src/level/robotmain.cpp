@@ -223,6 +223,8 @@ CRobotMain::CRobotMain()
     m_resetCreate  = false;
     m_shortCut     = true;
 
+    m_commandHistoryIndex = -1;
+
     m_movieInfoIndex = -1;
 
     m_tooltipPos = Math::Point(0.0f, 0.0f);
@@ -5004,7 +5006,8 @@ Error CRobotMain::ProcessEndMissionTake()
                     text,
                     details,
                     false, true,
-                    [&]() {
+                    [&]()
+                    {
                         ChangePhase(PHASE_WIN);
                     }
                 );
@@ -6011,12 +6014,12 @@ bool CRobotMain::GetDebugCrashSpheres()
     return m_debugCrashSpheres;
 }
 
-void CRobotMain::PushToCommandHistory(std::string str)
+void CRobotMain::PushToCommandHistory(std::string cmd)
 {
-    if (!m_commandHistory.empty() && m_commandHistory.front() == str) // already in history
+    if (!m_commandHistory.empty() && m_commandHistory.front() == cmd) // already in history
         return;
 
-    m_commandHistory.push_front(str);
+    m_commandHistory.push_front(cmd);
 
     if (m_commandHistory.size() > 50) // to avoid infinite growth
         m_commandHistory.pop_back();
